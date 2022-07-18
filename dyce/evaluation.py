@@ -7,15 +7,20 @@
 # ======================================================================================
 
 import sys
+from collections import deque
 from contextvars import ContextVar
+from dataclasses import dataclass
+from enum import Enum, auto
 from fractions import Fraction
-from functools import wraps
+from functools import cached_property, wraps
 from itertools import chain, product
 from math import prod
 from typing import (
     Callable,
+    Generator,
     Iterable,
     Iterator,
+    Literal,
     NamedTuple,
     Optional,
     Type,
@@ -37,13 +42,30 @@ from numerary.types import (
 
 from .h import H, HableT, HOrOutcomeT, _OutcomeCountT, _SourceT
 from .lifecycle import experimental
-from .p import P, RollT
-from .types import _GetItemT, as_int
+from .p import P, RollT, _analyze_selection, _RollCountT
+from .types import _GetItemT, as_int, getitems
 
 __all__ = ()
 
 
 # ---- Types ---------------------------------------------------------------------------
+
+
+class Direction(Enum):
+    LEAST_TO_GREATEST = auto()
+    GREATEST_TO_LEAST = auto()
+
+
+_PRollCountT = tuple[P, RollT, int]
+PRollCountsT = tuple[_PRollCountT, ...]
+_RollsGenEntryT = tuple[
+    "_NHNode",
+    P,  # source
+    RollT,  # roll
+    int,  # count
+    int,  # probability numerator
+    int,  # probability denominator
+]
 
 
 class HResult(NamedTuple):
@@ -97,6 +119,111 @@ _DEFAULT_LIMIT: _NormalizedLimitT = 1
 _DEFAULT_SENTINEL = H({0: 1})
 
 _expandable_ctxt: ContextVar[_Context] = ContextVar("DYCE_EXPANDABLE_CONTEXT")
+
+
+# ---- Classes -------------------------------------------------------------------------
+
+
+class KaronenCache(dict[tuple[int, H], "_NHNode"]):
+    r"""
+    TODO
+    """
+
+    @beartype
+    def __missing__(self, key: tuple[int, H]) -> "_NHNode":
+        n, h = key
+        n = as_int(n)
+
+        if n < 0:
+            raise ValueError("n must be non-negative")
+
+        h = h.lowest_terms()
+
+        if not n or not h:
+            h = H({})
+            n = 0
+
+        if (n, h) not in self:
+            self[n, h] = _NHNode(n, h)
+
+        return self[n, h]
+
+
+@dataclass(frozen=True)
+class _KOutcomeNode:
+    k: int
+    outcome: RealLike
+    prob: Fraction
+    n_remaining: int
+    h_remaining: H
+
+    @cached_property
+    def outcome_roll(self) -> RollT:
+        roll = (self.outcome,) * self.k
+
+        return roll
+
+
+@dataclass(frozen=True)
+class _NHNode(dict[Direction, tuple[_KOutcomeNode, ...]]):
+    n: int
+    h: H
+
+    @beartype
+    def __bool__(self) -> bool:
+        return bool(self.n and len(self.h))
+
+    @beartype
+    def __post_init__(self):
+        if self.n < 0:
+            raise ValueError("n must be non-negative")
+
+        if self.h is not self.h.lowest_terms():
+            raise ValueError("h must be in its lowest terms")
+
+    @beartype
+    def __missing__(self, direction: Direction) -> tuple[_KOutcomeNode, ...]:
+        if not self:
+            self[direction] = ()
+
+            return self[direction]
+
+        if len(self.h) == 1:
+            n_range: Iterable[int] = (self.n,)
+        else:
+            n_range = range(self.n, -1, -1)
+
+        if direction is Direction.LEAST_TO_GREATEST:
+            candidate = min(self.h)
+        elif direction is Direction.GREATEST_TO_LEAST:
+            candidate = max(self.h)
+        else:
+            assert False, f"unrecognized direction {direction}"
+
+        h_remaining = self.h.remove(candidate).lowest_terms()
+
+        def _gen() -> Iterator[_KOutcomeNode]:
+            for k in n_range:
+                n_remaining = self.n - k
+                prob = Fraction(
+                    self.h.exactly_k_times_in_n(candidate, self.n, k),
+                    self.h.total**self.n,
+                )
+                yield _KOutcomeNode(
+                    k=k,
+                    outcome=candidate,
+                    prob=prob,
+                    n_remaining=n_remaining,
+                    h_remaining=h_remaining,
+                )
+
+        self[direction] = tuple(_gen())
+
+        return self[direction]
+
+    @beartype
+    def _outcome_k_nodes(self, direction: Direction) -> tuple[_KOutcomeNode, ...]:
+        return self[direction]
 
 
 # ---- Decorators ----------------------------------------------------------------------
@@ -942,6 +1069,291 @@ def explode(
             return h_result.outcome
 
     return _explode(h, limit=limit)
+
+
+@beartype
+def skipable_roll_gen(
+    n: int,
+    h: H,
+    *,
+    direction: Direction,
+    include_partial_rolls=True,
+    cache: Optional[KaronenCache] = None,
+) -> Generator[_RollCountT, Literal[True], None]:
+    r"""
+    TODO
+    """
+    n = as_int(n)
+    cache = KaronenCache() if cache is None else cache
+    root_roll: RollT = ()
+    root_total = h.total**n if n and h else 1
+
+    if include_partial_rolls:
+        cull = (yield root_roll, root_total)
+
+        if cull:
+            yield  # type: ignore [misc]
+
+            return
+
+    work_left: deque[tuple[_NHNode, RollT, int, int]] = deque(
+        ((cache[n, h], root_roll, 1, 1),)
+    )
+
+    while work_left:
+        (
+            prev_n_h_node,
+            prev_roll,
+            prev_roll_num,
+            prev_roll_denom,
+        ) = work_left.popleft()
+
+        for outcome_k_node in prev_n_h_node._outcome_k_nodes(direction):
+            if direction is Direction.LEAST_TO_GREATEST:
+                next_roll = prev_roll + outcome_k_node.outcome_roll
+            elif direction is Direction.GREATEST_TO_LEAST:
+                next_roll = outcome_k_node.outcome_roll + prev_roll
+            else:
+                assert False, f"unrecognized direction {direction}"
+
+            next_roll_num = prev_roll_num * outcome_k_node.prob.numerator
+            next_roll_denom = prev_roll_denom * outcome_k_node.prob.denominator
+            next_roll_total = next_roll_num * root_total // next_roll_denom
+
+            # For 6d6, there are multiple partial rolls of ((1, 1, 1, 1), ...) which
+            # could be considered: ((1, 1, 1, 1), 375) for all remaining
+            # possibilities; ((1, 1, 1, 1), 240) for those excluding 2 as an
+            # outcome; ((1, 1, 1, 1), 135) for those excluding 2 and 3 as outcomes;
+            # ((1, 1, 1, 1), 60) for those excluding 2, 3, and 4 as outcomes; and
+            # ((1, 1, 1, 1), 15) for the roll excluding 2, 3, 4, and 5 as outcomes
+            # (i.e., ((1, 1, 1, 1, 6, 6), 15)). We use tuples of outcomes present in
+            # a roll because they are ergonomic for consumers of this iterator and
+            # because they perform well, but they are lossy. From the consumer's
+            # perspective ((1, 1, 1, 1), 375) looks identical to ((1, 1, 1, 1), 60)
+            # except for the count. What's missing is what outcomes are guaranteed
+            # absent from that roll. Rather than provide the additional information
+            # of outcomes-not-present (which very few algorithms are likely to use),
+            # we suppress subsequent redundant (partial) rolls (i.e., where we've
+            # only just resolved an outcome not present).
+            any_new_outcomes = outcome_k_node.k
+
+            # When working least-to-greatest, a partial roll of ((3, 4, 5), 120) on
+            # 6d6 can only resolve to a single complete roll of ((3, 4, 5, 6, 6, 6),
+            # 120), so we suppress yielding the partial roll and yield the complete
+            # one later. This overlaps with any_new_outcomes for rolls where the
+            # count of the penultimate outcome considered is zero, but the impact to
+            # performance vs. short-circuiting this computation on any_new_outcomes
+            # appears negligible in casual testing.
+            incomplete_roll_with_exactly_one_complete_resolution = (
+                outcome_k_node.n_remaining and len(outcome_k_node.h_remaining) == 1
+            )
+
+            if outcome_k_node.n_remaining == 0 or (
+                include_partial_rolls
+                and any_new_outcomes
+                and not incomplete_roll_with_exactly_one_complete_resolution
+            ):
+                cull = (yield next_roll, next_roll_total)
+
+                if cull:
+                    yield  # type: ignore [misc]
+
+                    continue
+
+            if outcome_k_node.n_remaining and outcome_k_node.h_remaining:
+                n_h_node_remaining = cache[
+                    outcome_k_node.n_remaining,
+                    outcome_k_node.h_remaining,
+                ]
+                work_left.append(
+                    (
+                        n_h_node_remaining,
+                        next_roll,
+                        next_roll_num,
+                        next_roll_denom,
+                    )
+                )
+
+
+@beartype
+def skipable_rolls_gen(
+    *ps: P,
+    direction: Direction,
+    cache: Optional[KaronenCache] = None,
+) -> Generator[PRollCountsT, Literal[True], None]:
+    if not all(p.is_homogeneous() for p in ps):
+        raise ValueError("each pool argument must be homogeneous")
+
+    cache = KaronenCache() if cache is None else cache
+
+    if len(ps) == 0:
+        return
+    if len(ps) == 1:
+        (p,) = ps
+        n = len(p)
+        h: H = p[0] if len(p) else H({})
+        gen = skipable_roll_gen(n, h, direction=direction, cache=cache)
+
+        for roll, count in gen:
+            cull = yield ((p, roll, count),)
+
+            if cull:
+                gen.send(True)
+
+                yield  # type: ignore [misc]
+
+        return
+
+    phns = [(p, p[0] if p else H({}), len(p)) for p in ps]
+    root_totals = tuple(h.total**n for _, h, n in phns)
+    root_entries: tuple[_RollsGenEntryT, ...] = tuple(
+        (cache[n, h], p, (), total, 1, 1) for (p, h, n), total in zip(phns, root_totals)
+    )
+    work_left = deque((root_entries,))
+
+    cull = yield tuple((p, roll, total) for _, p, roll, total, _, _ in root_entries)
+
+    if cull:
+        yield  # type: ignore [misc]
+
+        return
+
+    while work_left:
+        prev_entries = work_left.popleft()
+
+        if direction is Direction.LEAST_TO_GREATEST:
+            next_outcome = min(
+                (
+                    min(n_h_node.h)
+                    for n_h_node, _, _, _, _, _ in prev_entries
+                    if n_h_node
+                ),
+                default=None,
+            )
+        elif direction is Direction.GREATEST_TO_LEAST:
+            next_outcome = max(
+                (
+                    max(n_h_node.h)
+                    for n_h_node, _, _, _, _, _ in prev_entries
+                    if n_h_node
+                ),
+                default=None,
+            )
+        else:
+            assert False, f"unrecognized direction {direction}"
+
+        if next_outcome is None:
+            continue
+
+        next_p_indexes = {
+            i: entry
+            for i, entry in enumerate(prev_entries)
+            if next_outcome in entry[0].h  # NHNode
+        }
+
+        template_entries = list(prev_entries)
+
+        for next_outcome_k_nodes in product(
+            *(
+                n_h_node._outcome_k_nodes(direction)
+                for n_h_node, _, _, _, _, _ in next_p_indexes.values()
+            )
+        ):
+            any_new_rolls = False
+
+            for p_idx, next_outcome_k_node in zip(next_p_indexes, next_outcome_k_nodes):
+                _, p, prev_roll, _, prev_roll_num, prev_roll_denom = prev_entries[p_idx]
+                if direction is Direction.LEAST_TO_GREATEST:
+                    next_roll = prev_roll + next_outcome_k_node.outcome_roll
+                elif direction is Direction.GREATEST_TO_LEAST:
+                    next_roll = next_outcome_k_node.outcome_roll + prev_roll
+                else:
+                    assert False, f"unrecognized direction {direction}"
+
+                any_new_rolls |= len(next_roll) > len(prev_roll)
+                next_roll_num = prev_roll_num * next_outcome_k_node.prob.numerator
+                next_roll_denom = prev_roll_denom * next_outcome_k_node.prob.denominator
+                next_roll_count = next_roll_num * root_totals[p_idx] // next_roll_denom
+                next_n_h_node = cache[
+                    next_outcome_k_node.n_remaining,
+                    next_outcome_k_node.h_remaining,
+                ]
+
+                template_entries[p_idx] = (
+                    next_n_h_node,
+                    p,
+                    next_roll,
+                    next_roll_count,
+                    next_roll_num,
+                    next_roll_denom,
+                )
+
+            if any_new_rolls:
+                cull = yield tuple(
+                    (p, roll, count) for _, p, roll, count, _, _ in template_entries
+                )
+
+                if cull:
+                    yield
+
+                    continue
+
+            if any(n_h_node for n_h_node, _, _, _, _, _ in template_entries):
+                work_left.append(tuple(template_entries))
+
+
+@beartype
+def which_roll_gen(
+    n: int,
+    h: H,
+    *which: _GetItemT,
+    cache: Optional[KaronenCache] = None,
+) -> Iterator[_RollCountT]:
+    r"""
+    TODO
+    """
+    i = _analyze_selection(n, which)
+
+    if i is not None and abs(i) < n:
+        if i > 0:
+            gen = skipable_roll_gen(
+                n,
+                h,
+                direction=Direction.LEAST_TO_GREATEST,
+                include_partial_rolls=True,
+                cache=cache,
+            )
+
+            for roll, count in gen:
+                if len(roll) >= i:
+                    gen.send(True)
+                    fill = (0,) * (n - len(roll))
+                    yield tuple(getitems(roll + fill, which)), count
+        elif i < 0:
+            gen = skipable_roll_gen(
+                n,
+                h,
+                direction=Direction.GREATEST_TO_LEAST,
+                include_partial_rolls=True,
+                cache=cache,
+            )
+
+            for roll, count in gen:
+                if len(roll) >= abs(i):
+                    gen.send(True)
+                    fill = (0,) * (n - len(roll))
+                    yield tuple(getitems(fill + roll, which)), count
+        else:  # i == 0
+            return
+    else:
+        for roll, count in skipable_roll_gen(
+            n,
+            h,
+            direction=Direction.LEAST_TO_GREATEST,
+            include_partial_rolls=False,
+            cache=cache,
+        ):
+            yield tuple(getitems(roll, which)), count
 
 
 @beartype

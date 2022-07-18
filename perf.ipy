@@ -1,0 +1,64 @@
+from collections import deque
+
+from dyce import H, P
+from dyce.evaluation import (
+    Direction,
+    KaronenCache,
+    skipable_roll_gen,
+    skipable_rolls_gen,
+    which_roll_gen,
+)
+from tests.test_evaluation import _rwc_homogeneous_n_h_using_multinomial_coefficient
+
+DIRECTION = Direction.LEAST_TO_GREATEST
+
+print("P(6), 2@P(10)")
+ps = P(6), 2 @ P(10)
+%timeit deque((P(*ps).rolls_with_counts()), maxlen=0)
+%timeit deque(skipable_rolls_gen(*ps, direction=DIRECTION), maxlen=0)
+
+print("4@P(6), 4@P(8)")
+ps = 4 @ P(6), 4 @ P(8)
+%timeit deque((P(*ps).rolls_with_counts()), maxlen=0)
+%timeit deque(skipable_rolls_gen(*ps, direction=DIRECTION), maxlen=0)
+
+print("8@P(6)")
+%timeit deque(_rwc_homogeneous_n_h_using_multinomial_coefficient(8, H(6)))
+%timeit deque((8 @ P(6)).rolls_with_counts(), maxlen=0)
+%timeit deque(skipable_roll_gen(8, H(6), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(8 @ P(6), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(4 @ P(6), 4 @ P(6), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(5 @ P(6), 3 @ P(6), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(6 @ P(6), 2 @ P(6), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(7 @ P(6), 1 @ P(6), direction=DIRECTION), maxlen=0)
+
+print("6@P(10)")
+%timeit deque(_rwc_homogeneous_n_h_using_multinomial_coefficient(6, H(10)))
+%timeit deque((6 @ P(10)).rolls_with_counts(), maxlen=0)
+%timeit deque(skipable_roll_gen(6, H(10), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(6 @ P(10), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(3 @ P(10), 3 @ P(10), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(4 @ P(10), 2 @ P(10), direction=DIRECTION), maxlen=0)
+%timeit deque(skipable_rolls_gen(5 @ P(10), 1 @ P(10), direction=DIRECTION), maxlen=0)
+
+cache = KaronenCache()
+
+for n, h in (
+    (20, H(6)),
+    (10, H(10)),
+):
+    print(f"{n}@P({h})")
+    %timeit deque((n @ P(h)).rolls_with_counts(), maxlen=0)
+    %timeit deque(skipable_roll_gen(n, h, direction=DIRECTION, include_partial_rolls=True, cache=cache), maxlen=0)
+    %timeit deque(skipable_roll_gen(n, h, direction=DIRECTION, include_partial_rolls=False, cache=cache), maxlen=0)
+    %timeit deque(_rwc_homogeneous_n_h_using_multinomial_coefficient(n, h))
+
+    s = slice(None, n // 3)
+    print(f"{s}")
+    %timeit deque((n @ P(h)).rolls_with_counts(s), maxlen=0)
+    %timeit deque(which_roll_gen(n, h, s, cache=cache), maxlen=0)
+
+    s = slice(n // -3, None)
+    print(f"{s}")
+    %timeit deque((n @ P(h)).rolls_with_counts(s), maxlen=0)
+    %timeit deque(which_roll_gen(n, h, s, cache=cache), maxlen=0)
