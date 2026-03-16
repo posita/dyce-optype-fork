@@ -17,6 +17,7 @@ from dyce.types import (
     Realish,
     RealishLike,
     as_integralish,
+    as_integralish_ratio,
     as_realish,
     is_even,
     is_odd,
@@ -31,7 +32,10 @@ __all__ = ()
 def test_as_integralish() -> None:
     i: IntegralishLike
 
-    for i in (1,):
+    for i in (
+        True,
+        1,
+    ):
         assert isinstance(as_integralish(i), Integralish)
 
     with pytest.raises(TypeError):
@@ -66,16 +70,44 @@ def test_as_integralish_sympy() -> None:
         assert isinstance(as_integralish(i), Integralish)
 
     with pytest.raises(TypeError):
-        as_integralish(sympy.Rational(1, 2))  # ty: ignore [unused-ignore-comment, unused-type-ignore-comment] # type: ignore [arg-type, unused-ignore]
+        as_integralish(sympy.Rational(1, 2))
 
     with pytest.raises(TypeError):
-        as_integralish(sympy.Float(1))  # ty: ignore [unused-ignore-comment, unused-type-ignore-comment] # type: ignore [arg-type, unused-ignore]
+        as_integralish(sympy.Float(1))
+
+
+def test_as_integralish_ratio() -> None:
+    assert as_integralish_ratio(2) == (2, 1)
+    assert as_integralish_ratio(2.0) == (2, 1)
+    assert as_integralish_ratio(Decimal("2.0")) == (2, 1)
+
+    with pytest.raises(TypeError):
+        as_integralish_ratio("asdf")  # type: ignore [arg-type]
+
+
+def test_as_integralish_ratio_numpy() -> None:
+    np = pytest.importorskip("numpy", reason="requires numpy")
+    assert as_integralish_ratio(np.int64(2)) == (2, 1)
+    assert as_integralish_ratio(np.float64(2)) == (2, 1)
+
+    with pytest.raises(TypeError):
+        as_integralish_ratio(np.bool(True))
+
+
+def test_as_integralish_ratio_sympy() -> None:
+    sympy = pytest.importorskip("sympy", reason="requires sympy")
+    assert as_integralish_ratio(sympy.Integer(2)) == (2, 1)
+    assert as_integralish_ratio(sympy.Rational(22, 7)) == (22, 7)
+
+    with pytest.raises(TypeError):
+        as_integralish_ratio(sympy.Float(2))
 
 
 def test_as_realish() -> None:
     i: RealishLike
 
     for i in (
+        True,
         1,
         Decimal(1),
         Fraction(1),
@@ -91,6 +123,7 @@ def test_as_realish_numpy() -> None:
     i: RealishLike
 
     for i in (
+        np.bool(1),
         np.float64(1),
         np.int64(1),
     ):

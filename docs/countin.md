@@ -15,10 +15,10 @@
 <!-- BEGIN MONKEY PATCH --
 For typing.
 
->>> import sympy  # type: ignore [import-untyped]
->>> import sympy.abc  # type: ignore [import-untyped]
->>> import sympy.solvers  # type: ignore [import-untyped]
->>> import sympy.solvers.inequalities  # type: ignore [import-untyped]
+>>> import sympy  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
+>>> import sympy.abc  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
+>>> import sympy.solvers  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
+>>> import sympy.solvers.inequalities  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
 
   -- END MONKEY PATCH -->
 

@@ -7,24 +7,26 @@
 # ======================================================================================
 
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from fractions import Fraction
 from functools import cache
 from itertools import chain, groupby, product, repeat, starmap
 from math import inf, prod
 from operator import __eq__, __index__, __ne__
-from typing import Union, overload
+from typing import Union, cast, overload
 
-from numerary import RealLike
+from beartype.typing import SupportsIndex, SupportsInt
 from numerary.bt import beartype
-from numerary.types import SupportsIndex, SupportsInt
 
-from .h import H, HableOpsMixin, sum_h
+from .h import H, HableOpsMixin, OutcomeT, sum_h
 from .lifecycle import experimental
 from .types import (
-    _BinaryOperatorT,
+    BinaryOperatorT,
+    Numberish,
+    Realish,
+    RealishLike,
+    UnaryOperatorT,
     _GetItemT,
-    _UnaryOperatorT,
     as_int,
     getitems,
     sorted_outcomes,
@@ -38,11 +40,10 @@ __all__ = ("P",)
 
 # TODO(posita): Get rid of Union in favor of | notation once we can use proper forward
 # references. See <https://github.com/beartype/beartype/issues/152>.
-RollT = tuple[RealLike, ...]
-_OperandT = Union["P", RealLike]
+RollT = tuple[OutcomeT, ...]
+_OperandT = Union["P", Numberish]
 _RollCountT = tuple[RollT, int]
 _RollProbT = tuple[RollT, int, int]
-_SelectCallableT = Callable[[H, int, int], Iterator[_RollProbT]]
 
 
 # ---- Classes -------------------------------------------------------------------------
@@ -433,7 +434,7 @@ class P(Sequence[H], HableOpsMixin):
 
     @experimental
     @beartype
-    def appearances_in_rolls(self, outcome: RealLike) -> H:
+    def appearances_in_rolls(self, outcome: RealishLike) -> H:
         r"""
         !!! warning "Experimental"
 
@@ -497,10 +498,10 @@ class P(Sequence[H], HableOpsMixin):
         ```
         </details>
         """
-        group_counters: list[Counter[RealLike]] = []
+        group_counters: list[Counter[RealishLike]] = []
 
         for h, hs in groupby(self):
-            group_counter: Counter[RealLike] = Counter()
+            group_counter: Counter[RealishLike] = Counter()
             n = sum(1 for _ in hs)
 
             for k in range(n + 1):
@@ -754,7 +755,7 @@ class P(Sequence[H], HableOpsMixin):
             yield taken_outcomes, roll_count
 
     @beartype
-    def map(self, op: _BinaryOperatorT, right_operand: _OperandT) -> "P":
+    def map(self, op: BinaryOperatorT, right_operand: _OperandT) -> "P":
         r"""
         Shorthand for ``#!python P(*(h.map(op, right_operand) for h in self))``. See the
         [``H.map`` method][dyce.h.H.map].
@@ -770,7 +771,11 @@ class P(Sequence[H], HableOpsMixin):
         return P(*(h.map(op, right_operand) for h in self))
 
     @beartype
-    def rmap(self, left_operand: RealLike, op: _BinaryOperatorT) -> "P":
+    def rmap(
+        self,
+        left_operand: Realish | RealishLike,
+        op: BinaryOperatorT,
+    ) -> "P":
         r"""
         Shorthand for ``#!python P(*(h.rmap(left_operand, op) for h in self))``. See the
         [``H.rmap`` method][dyce.h.H.rmap].
@@ -787,7 +792,7 @@ class P(Sequence[H], HableOpsMixin):
         return P(*(h.rmap(left_operand, op) for h in self))
 
     @beartype
-    def umap(self, op: _UnaryOperatorT) -> "P":
+    def umap(self, op: UnaryOperatorT) -> "P":
         r"""
         Shorthand for ``#!python P(*(h.umap(op) for h in self))``. See the
         [``H.umap`` method][dyce.h.H.umap].
@@ -865,6 +870,7 @@ def _rwc_heterogeneous_h_groups(
     homogeneous subgroup.
     """
     total_n = sum(n for _, n in h_groups)
+    v: tuple[_RollCountT, ...]
 
     for v in product(
         *(
@@ -877,8 +883,6 @@ def _rwc_heterogeneous_h_groups(
         # It's possible v is () if h_groups is empty. See
         # <https://stackoverflow.com/questions/3154301/> for a detailed discussion.
         if v:
-            rolls_by_group: Iterable[Iterable[RealLike]]
-            counts_by_group: Iterable[int]
             rolls_by_group, counts_by_group = zip(*v, strict=True)
             total_count = prod(counts_by_group)
             sorted_outcomes = tuple(sorted(chain(*rolls_by_group)))
@@ -893,7 +897,7 @@ def _rwc_heterogeneous_h_groups(
                         total_n - len(sorted_outcomes)
                     )
 
-            yield sorted_outcomes, total_count
+            yield cast("RollT", sorted_outcomes), total_count
 
 
 @beartype
@@ -901,7 +905,7 @@ def _rwc_homogeneous_n_h_using_partial_selection(
     n: int,
     h: H,
     k: int,
-    fill: RealLike | None = None,
+    fill: RealishLike | None = None,
 ) -> Iterator[_RollCountT]:
     r"""
     A memoized adaptation of [Ilmari Karonen’s

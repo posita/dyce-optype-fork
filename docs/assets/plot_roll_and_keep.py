@@ -9,15 +9,15 @@
 from collections.abc import Iterator
 
 from anydyce.viz import plot_line
-from numerary import RealLike
 
 from dyce import H, P
+from dyce.types import Realish
 
 
 def do_it(style: str) -> None:
     from matplotlib import pyplot as plt
 
-    def roll_and_keep(p: P, k: int) -> Iterator[tuple[RealLike, int]]:
+    def roll_and_keep(p: P, k: int) -> Iterator[tuple[Realish, int]]:
         assert p.is_homogeneous()
         max_d = max(p[-1]) if p else 0
 

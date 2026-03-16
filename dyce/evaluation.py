@@ -13,27 +13,23 @@ from fractions import Fraction
 from functools import wraps
 from itertools import chain, product
 from math import prod
-from typing import (
-    NamedTuple,
-    TypeVar,
-    overload,
-)
+from typing import NamedTuple, cast, overload
 
-from numerary import IntegralLike, RealLike
 from numerary.bt import beartype
-from numerary.types import (
-    CachingProtocolMeta,
-    Protocol,
-    RationalLikeMixedT,
-    RationalLikeMixedU,
-    denominator,
-    numerator,
-)
 
-from .h import H, HableT, HOrOutcomeT, _OutcomeCountT, _SourceT
+from .h import H, HableT, HOrOutcomeT, OutcomeT, _OutcomeCountT, _SourceT
 from .lifecycle import experimental
 from .p import P, RollT
-from .types import _GetItemT, as_int
+from .types import (
+    IntegralishLike,
+    Numberish,
+    Protocol,
+    ProtocolMeta,
+    RealishLike,
+    _GetItemT,
+    as_int,
+    as_integralish_ratio,
+)
 
 __all__ = ()
 
@@ -55,7 +51,7 @@ _ = """
 
 class HResult(NamedTuple):
     h: H
-    outcome: RealLike
+    outcome: OutcomeT
 
 
 class PResult(NamedTuple):
@@ -72,10 +68,8 @@ class PWithSelection(NamedTuple):
         return self.p.total
 
 
-LimitT = IntegralLike | RationalLikeMixedU | RealLike
+_DependentTermT = Callable[..., HOrOutcomeT]
 _NormalizedLimitT = int | Fraction
-_ReturnsHOrOutcomeT = Callable[..., HOrOutcomeT]
-_DependentTermT = TypeVar("_DependentTermT", bound=_ReturnsHOrOutcomeT)
 _POrPWithSelectionOrSourceT = P | PWithSelection | _SourceT
 _PredicateT = Callable[[HResult], bool]
 _HResultCountT = tuple[HResult, int]
@@ -88,11 +82,11 @@ class _Context(NamedTuple):
     contextual_precision: Fraction = Fraction(1)
 
 
-class _ForEachEvaluatorT(Protocol, metaclass=CachingProtocolMeta):
+class _ForEachEvaluatorT(Protocol, metaclass=ProtocolMeta):
     def __call__(
         self,
         *args: _POrPWithSelectionOrSourceT,
-        limit: LimitT | None = None,
+        limit: Numberish | None = None,
         **kw: _POrPWithSelectionOrSourceT,
     ) -> H: ...
 
@@ -627,7 +621,7 @@ def expandable(
         @wraps(f)
         def _f(
             *args: _POrPWithSelectionOrSourceT,
-            limit: LimitT | None = None,
+            limit: Numberish | None = None,
             **kw: _POrPWithSelectionOrSourceT,
         ) -> H:
             try:
@@ -790,9 +784,9 @@ def aggregate_weighted(
 @experimental
 @beartype
 def foreach(
-    callback: _DependentTermT,
+    callback: Callable[..., object],
     *args: _POrPWithSelectionOrSourceT,
-    limit: LimitT | None = None,
+    limit: Numberish | None = None,
     sentinel: H = _DEFAULT_SENTINEL,
     **kw: _POrPWithSelectionOrSourceT,
 ) -> H:
@@ -849,7 +843,9 @@ def foreach(
 
     ```
     """
-    return expandable(callback, sentinel=sentinel)(*args, limit=limit, **kw)
+    return expandable(cast("_DependentTermT", callback), sentinel=sentinel)(
+        *args, limit=limit, **kw
+    )
 
 
 @experimental
@@ -857,8 +853,8 @@ def foreach(
 def explode(
     source: _SourceT,
     predicate: _PredicateT = lambda result: result.outcome == max(result.h),
-    limit: LimitT | None = None,
-    inf: RealLike = float("inf"),
+    limit: Numberish | None = None,
+    inf: Numberish = float("inf"),
 ) -> H:
     r"""
     !!! warning "Experimental"
@@ -954,7 +950,7 @@ def explode(
     def _explode(h_result: HResult) -> HOrOutcomeT:
         if predicate(h_result):
             if len(h_result.h) == 1 and not isinstance(
-                limit, (type(None), IntegralLike)
+                limit, (type(None), IntegralishLike)
             ):
                 if h_result.outcome == h_result.outcome - h_result.outcome:
                     return H({h_result.outcome: 1})
@@ -993,16 +989,18 @@ def _h_or_p_or_p_with_selection_to_result_iterable(
 
 @beartype
 def _normalize_limit(
-    limit: LimitT,
+    limit: Numberish,
 ) -> _NormalizedLimitT:
     normalized_limit: _NormalizedLimitT
 
-    if isinstance(limit, IntegralLike):
+    if isinstance(limit, IntegralishLike):
         normalized_limit = as_int(limit)
-    elif isinstance(limit, RationalLikeMixedT):
-        normalized_limit = Fraction(numerator(limit), denominator(limit))
-    elif isinstance(limit, RealLike):
-        normalized_limit = Fraction(float(limit))
+    elif isinstance(limit, RealishLike):
+        try:
+            numerator, denominator = as_integralish_ratio(limit)
+            normalized_limit = Fraction(as_int(numerator), as_int(denominator))
+        except TypeError:
+            normalized_limit = Fraction(float(limit))
     else:
         raise TypeError(f"unrecognized limit type {limit}")
 

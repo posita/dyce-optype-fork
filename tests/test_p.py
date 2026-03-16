@@ -15,18 +15,17 @@ from math import factorial, prod
 from unittest.mock import Mock, call, patch
 
 import pytest
-from numerary import RealLike
 from numerary.bt import beartype
 
 from dyce import H, P
-from dyce.h import _MappingT
+from dyce.h import _HMappingT
 from dyce.p import (
     RollT,
     _analyze_selection,
     _RollCountT,
     _rwc_homogeneous_n_h_using_partial_selection,
 )
-from dyce.types import _GetItemT
+from dyce.types import Numberish, _GetItemT
 
 __all__ = ()
 
@@ -185,7 +184,7 @@ class TestP:
         p_d6 = P(6)
 
         with pytest.raises(roar.BeartypeException):
-            _ = p_d6[""]  # type: ignore [call-overload]
+            _ = p_d6[""]  # type: ignore [call-overload, unused-ignore] # ty: ignore [unused-ignore-comment]
 
     def test_op_add_h(self) -> None:
         d2 = H(2)
@@ -563,7 +562,7 @@ class TestP:
         assert p_2d6_3d8.total == H(6).total ** 2 * H(8).total ** 3
 
     def test_appearances_in_rolls(self) -> None:
-        def _sum_method(p: P, outcome: RealLike) -> H:
+        def _sum_method(p: P, outcome: Numberish) -> H:
             return H(
                 (sum(1 for v in roll if v == outcome), count)
                 for roll, count in p.rolls_with_counts()
@@ -846,7 +845,8 @@ def _roll_which(roll: RollT, *keys: _GetItemT) -> RollT:
         if isinstance(key, slice):
             roll_selection = tuple(operator.__getitem__(roll, key))
         else:
-            roll_selection = (operator.__getitem__(roll, key),)
+            # TODO(posita): See <https://github.com/astral-sh/ty/issues/3037>
+            roll_selection = (operator.__getitem__(roll, key),)  # ty: ignore [no-matching-overload]
 
         return roll_selection
 
@@ -873,7 +873,7 @@ def _rwc_heterogeneous_brute_force_combinations(
 @beartype
 def _rwc_homogeneous_n_h_using_multinomial_coefficient(
     n: int,
-    h: _MappingT,
+    h: _HMappingT,
     *keys: _GetItemT,
 ) -> Iterator[_RollCountT]:
     r"""

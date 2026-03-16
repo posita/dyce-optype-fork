@@ -15,31 +15,26 @@ from operator import __getitem__, __index__
 from typing import (
     TYPE_CHECKING,
     Any,
-    Protocol,
-    SupportsAbs,
-    SupportsFloat,
     TypeVar,
+    Union,
     overload,
     runtime_checkable,
 )
 
-from beartype.typing import SupportsIndex, SupportsInt
+from beartype.typing import SupportsAbs, SupportsFloat, SupportsIndex, SupportsInt
 from numerary.bt import beartype
 
 if TYPE_CHECKING:
     # Warning: Deep typing voodoo ahead. See
     # <https://github.com/python/mypy/issues/11614>.
     from abc import ABCMeta as ProtocolMeta
+    from typing import Protocol
 else:
     from beartype.typing import Protocol
 
     ProtocolMeta = type(Protocol)
 
-__all__ = (
-    "as_int",
-    "is_even",
-    "is_odd",
-)
+__all__ = ()
 
 
 # ---- Types ---------------------------------------------------------------------------
@@ -47,9 +42,12 @@ __all__ = (
 
 _T = TypeVar("_T")
 _T_co = TypeVar("_T_co", covariant=True)
+_GetItemT = SupportsIndex | slice
 _UnaryOperatorT = Callable[[_T_co], _T_co]
 _BinaryOperatorT = Callable[[_T_co, _T_co], _T_co]
-_GetItemT = SupportsIndex | slice
+UnaryOperatorT = Callable[[_T_co], _T_co]
+BinaryOperatorT = Callable[[_T_co, _T_co], _T_co]
+Numberish = Union["RealishLike", "Realish"]
 
 
 def _assert_isinstance(*num_ts: type, target_t: type) -> None:
@@ -59,169 +57,6 @@ def _assert_isinstance(*num_ts: type, target_t: type) -> None:
 
     for num_t in num_ts:
         assert isinstance(num_t(1), target_t), f"{num_t!r}, {target_t!r}"
-
-
-@runtime_checkable
-class Realish(SupportsAbs["Realish"], SupportsFloat, Protocol, metaclass=ProtocolMeta):
-    # Complex methods
-    @abstractmethod
-    def __add__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __radd__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __sub__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rsub__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __mul__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rmul__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __truediv__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rtruediv__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __neg__(self) -> "Realish": ...
-    @abstractmethod
-    def __pos__(self) -> "Realish": ...
-    @abstractmethod
-    def __pow__(self, exponent: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rpow__(self, exponent: "Realish", /) -> "Realish": ...
-
-    # Real methods
-    @abstractmethod
-    def __lt__(self, other: "Realish", /) -> bool: ...
-    @abstractmethod
-    def __le__(self, other: "Realish", /) -> bool: ...
-    @abstractmethod
-    def __ge__(self, other: "Realish", /) -> bool: ...
-    @abstractmethod
-    def __gt__(self, other: "Realish", /) -> bool: ...
-    @abstractmethod
-    def __floordiv__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rfloordiv__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __mod__(self, other: "Realish", /) -> "Realish": ...
-    @abstractmethod
-    def __rmod__(self, other: "Realish", /) -> "Realish": ...
-
-
-_assert_isinstance(int, float, bool, Decimal, Fraction, target_t=Realish)
-
-
-@runtime_checkable
-class Integralish(
-    SupportsAbs["Integralish"],
-    SupportsFloat,
-    SupportsIndex,
-    SupportsInt,
-    Protocol,
-    metaclass=ProtocolMeta,
-):
-    # Complex methods
-    @overload
-    @abstractmethod
-    def __add__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __add__(self, other: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __radd__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __radd__(self, other: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __sub__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __sub__(self, other: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __rsub__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __rsub__(self, other: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __mul__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __mul__(self, other: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __rmul__(self, other: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __rmul__(self, other: Realish, /) -> Realish: ...
-    @abstractmethod
-    def __truediv__(self, other: Realish, /) -> Realish: ...
-    @abstractmethod
-    def __rtruediv__(self, other: Realish, /) -> Realish: ...
-    @abstractmethod
-    def __neg__(self) -> "Integralish": ...
-    @abstractmethod
-    def __pos__(self) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __pow__(self, exponent: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __pow__(self, exponent: Realish, /) -> Realish: ...
-    @overload
-    @abstractmethod
-    def __rpow__(self, exponent: "Integralish", /) -> "Integralish": ...
-    @overload
-    @abstractmethod
-    def __rpow__(self, exponent: Realish, /) -> Realish: ...
-
-    # Real methods
-    @abstractmethod
-    def __lt__(self, other: "Integralish", /) -> bool: ...
-    @abstractmethod
-    def __le__(self, other: "Integralish", /) -> bool: ...
-    @abstractmethod
-    def __ge__(self, other: "Integralish", /) -> bool: ...
-    @abstractmethod
-    def __gt__(self, other: "Integralish", /) -> bool: ...
-    @abstractmethod
-    def __floordiv__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rfloordiv__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __mod__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rmod__(self, other: "Integralish", /) -> "Integralish": ...
-
-    # Integral methods
-    @abstractmethod
-    def __lshift__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rlshift__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rshift__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rrshift__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __and__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rand__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __xor__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __rxor__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __or__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __ror__(self, other: "Integralish", /) -> "Integralish": ...
-    @abstractmethod
-    def __invert__(self) -> "Integralish": ...
-
-
-_assert_isinstance(int, bool, target_t=Integralish)
 
 
 @runtime_checkable
@@ -275,6 +110,56 @@ class RealishLike(SupportsAbs[Any], Protocol, metaclass=ProtocolMeta):
 
 
 _assert_isinstance(int, float, bool, Decimal, Fraction, target_t=RealishLike)
+
+
+@runtime_checkable
+class Realish(SupportsAbs["Realish"], SupportsFloat, Protocol, metaclass=ProtocolMeta):
+    # Complex methods
+    @abstractmethod
+    def __add__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __radd__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __sub__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rsub__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __mul__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rmul__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __truediv__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rtruediv__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __neg__(self) -> "Realish": ...
+    @abstractmethod
+    def __pos__(self) -> "Realish": ...
+    @abstractmethod
+    def __pow__(self, exponent: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rpow__(self, exponent: Union["Realish", RealishLike], /) -> "Realish": ...
+
+    # Real methods
+    @abstractmethod
+    def __lt__(self, other: Union["Realish", RealishLike], /) -> bool: ...
+    @abstractmethod
+    def __le__(self, other: Union["Realish", RealishLike], /) -> bool: ...
+    @abstractmethod
+    def __ge__(self, other: Union["Realish", RealishLike], /) -> bool: ...
+    @abstractmethod
+    def __gt__(self, other: Union["Realish", RealishLike], /) -> bool: ...
+    @abstractmethod
+    def __floordiv__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rfloordiv__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __mod__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+    @abstractmethod
+    def __rmod__(self, other: Union["Realish", RealishLike], /) -> "Realish": ...
+
+
+_assert_isinstance(int, float, bool, Decimal, Fraction, target_t=Realish)
 
 
 @runtime_checkable
@@ -358,6 +243,167 @@ class IntegralishLike(
 _assert_isinstance(int, bool, target_t=IntegralishLike)
 
 
+@runtime_checkable
+class Integralish(
+    SupportsAbs["Integralish"],
+    SupportsFloat,
+    SupportsIndex,
+    SupportsInt,
+    Protocol,
+    metaclass=ProtocolMeta,
+):
+    # Complex methods
+    @overload
+    @abstractmethod
+    def __add__(self, other: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __add__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __radd__(self, other: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __radd__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __sub__(self, other: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __sub__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __rsub__(self, other: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __rsub__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __mul__(self, other: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __mul__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __rmul__(self, other: Union[Realish, RealishLike], /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __rmul__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __truediv__(
+        self, other: Union["Integralish", IntegralishLike, Realish, RealishLike], /
+    ) -> Realish: ...
+    @abstractmethod
+    def __rtruediv__(
+        self, other: Union["Integralish", IntegralishLike, Realish, RealishLike], /
+    ) -> Realish: ...
+    @abstractmethod
+    def __neg__(self) -> "Integralish": ...
+    @abstractmethod
+    def __pos__(self) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __pow__(self, exponent: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __pow__(
+        self, exponent: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @overload
+    @abstractmethod
+    def __rpow__(self, exponent: Realish | RealishLike, /) -> Realish: ...
+    @overload
+    @abstractmethod
+    def __rpow__(
+        self, exponent: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+
+    # Real methods
+    @abstractmethod
+    def __lt__(self, other: Numberish, /) -> bool: ...
+    @abstractmethod
+    def __le__(self, other: Numberish, /) -> bool: ...
+    @abstractmethod
+    def __ge__(self, other: Numberish, /) -> bool: ...
+    @abstractmethod
+    def __gt__(self, other: Numberish, /) -> bool: ...
+    @abstractmethod
+    def __floordiv__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rfloordiv__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __mod__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rmod__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+
+    # Integral methods
+    @abstractmethod
+    def __lshift__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rlshift__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rshift__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rrshift__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __and__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rand__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __xor__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __rxor__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __or__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __ror__(
+        self, other: Union["Integralish", IntegralishLike], /
+    ) -> "Integralish": ...
+    @abstractmethod
+    def __invert__(self) -> "Integralish": ...
+
+
+_assert_isinstance(int, bool, target_t=Integralish)
+
+
 # ---- Functions -----------------------------------------------------------------------
 
 
@@ -375,11 +421,50 @@ def as_int(val: SupportsInt) -> int:
     return int_val
 
 
-def as_integralish(o: IntegralishLike) -> Integralish:
+def as_integralish(o: IntegralishLike | Integralish) -> Integralish:
     if isinstance(o, Integralish):
         return o
     else:
         raise TypeError  # TODO(posita): add error message
+
+
+@beartype
+def as_integralish_ratio(
+    operand: RealishLike | Realish,
+) -> tuple[Integralish, Integralish]:
+    r"""
+    Helper function that extracts the numerator from *operand* including resolving
+    non-compliant rational implementations that don't implement ``as_integer_ratio`` or
+    implement ``numerator`` as a method rather than a property.
+
+    ``` python
+    >>> from dyce.types import as_integralish_ratio
+    >>> from fractions import Fraction
+    >>> as_integralish_ratio(Fraction(22, 7))
+    (22, 7)
+
+    ```
+    """
+    if hasattr(operand, "as_integer_ratio") and callable(operand.as_integer_ratio):
+        return operand.as_integer_ratio()
+
+    numerator: Integralish
+    denominator: Integralish
+
+    if hasattr(operand, "numerator") and hasattr(operand, "denominator"):
+        if callable(operand.numerator):
+            numerator = operand.numerator()
+        else:
+            numerator = operand.numerator
+
+        if callable(operand.denominator):
+            denominator = operand.denominator()
+        else:
+            denominator = operand.denominator
+
+        return (numerator, denominator)
+
+    raise TypeError(f"{operand!r} ({type(operand)}) is not rational")
 
 
 def as_realish(o: RealishLike) -> Realish:
@@ -419,7 +504,7 @@ def sorted_outcomes(vals: Iterable[_T]) -> list[_T]:
     vals = list(vals)
 
     try:
-        vals.sort()  # type: ignore [no-matching-overload, unused-ignore]
+        vals.sort()
     except TypeError:
         # This is for outcomes that don't support direct comparisons, like symbolic
         # representations

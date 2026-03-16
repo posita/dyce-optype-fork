@@ -9,8 +9,6 @@
 from collections import Counter
 from enum import IntEnum, auto
 
-from numerary import RealLike
-
 from dyce import H, P
 from dyce.evaluation import (
     HResult,
@@ -21,6 +19,7 @@ from dyce.evaluation import (
     foreach,
 )
 from dyce.h import HOrOutcomeT
+from dyce.types import Numberish, Realish, as_realish
 
 __all__ = ()
 
@@ -34,8 +33,8 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     p_3d42d6 = P(d4, d4, d4, d6, d6)
 
     @expandable
-    def roll_sum(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert roll_sum(p_3d42d6) == H(
         (sum(roll), count) for roll, count in p_3d42d6.rolls_with_counts()
@@ -53,14 +52,14 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_head_p(result: PResult) -> RealLike:
-        return sum(result.roll[:3])
+    def roll_sum_head_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[:3]))
 
     assert roll_sum_head_p(p_3d42d6) == head_sum
 
     @expandable
-    def roll_sum_head_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_head_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_head_p_with_selection(PWithSelection(p_3d42d6, (0, 1, 2)))
@@ -82,14 +81,14 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_tail_p(result: PResult) -> RealLike:
-        return sum(result.roll[-3:])
+    def roll_sum_tail_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[-3:]))
 
     assert roll_sum_tail_p(p_3d42d6) == tail_sum
 
     @expandable
-    def roll_sum_tail_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_tail_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_tail_p_with_selection(PWithSelection(p_3d42d6, (-3, -2, -1)))
@@ -106,14 +105,14 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_mid_p(result: PResult) -> RealLike:
-        return sum(result.roll[1:-1])
+    def roll_sum_mid_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[1:-1]))
 
     assert roll_sum_mid_p(p_3d42d6) == mid_sum
 
     @expandable
-    def roll_sum_mid_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_mid_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_mid_p_with_selection(PWithSelection(p_3d42d6, (slice(1, -1),)))
@@ -130,14 +129,14 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_skip_p(result: PResult) -> RealLike:
-        return sum(result.roll[1::2])
+    def roll_sum_skip_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[1::2]))
 
     assert roll_sum_skip_p(p_3d42d6) == window_sum
 
     @expandable
-    def roll_sum_skip_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_skip_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_skip_p_with_selection(PWithSelection(p_3d42d6, (slice(1, None, 2),)))
@@ -154,13 +153,13 @@ def test_expandable_equivalence_heterogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_window_p(result: PResult) -> RealLike:
+    def roll_sum_window_p(result: PResult) -> Realish:
         return result.roll[2] + result.roll[4]
 
     assert roll_sum_window_p(p_3d42d6) == window_sum
 
     @expandable
-    def roll_sum_window_p_with_selection(result: PResult) -> RealLike:
+    def roll_sum_window_p_with_selection(result: PResult) -> Realish:
         return result.roll[0] + result.roll[2]
 
     assert (
@@ -177,8 +176,8 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     assert H((sum(roll), count) for roll, count in p_6d4.rolls_with_counts()) == d4_6
 
     @expandable
-    def roll_sum(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert roll_sum(p_6d4) == d4_6
 
@@ -193,14 +192,14 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_head_p(result: PResult) -> RealLike:
-        return sum(result.roll[:3])
+    def roll_sum_head_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[:3]))
 
     assert roll_sum_head_p(p_6d4) == head_sum
 
     @expandable
-    def roll_sum_head_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_head_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert roll_sum_head_p_with_selection(PWithSelection(p_6d4, (0, 1, 2))) == head_sum
 
@@ -218,14 +217,14 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_tail_p(result: PResult) -> RealLike:
-        return sum(result.roll[-3:])
+    def roll_sum_tail_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[-3:]))
 
     assert roll_sum_tail_p(p_6d4) == tail_sum
 
     @expandable
-    def roll_sum_tail_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_tail_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_tail_p_with_selection(PWithSelection(p_6d4, (-3, -2, -1))) == tail_sum
@@ -242,14 +241,14 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_mid_p(result: PResult) -> RealLike:
-        return sum(result.roll[1:-1])
+    def roll_sum_mid_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[1:-1]))
 
     assert roll_sum_mid_p(p_6d4) == mid_sum
 
     @expandable
-    def roll_sum_mid_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_mid_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_mid_p_with_selection(PWithSelection(p_6d4, (slice(1, -1),))) == mid_sum
@@ -269,14 +268,14 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_skip_p(result: PResult) -> RealLike:
-        return sum(result.roll[1::2])
+    def roll_sum_skip_p(result: PResult) -> Realish:
+        return as_realish(sum(result.roll[1::2]))
 
     assert roll_sum_skip_p(p_6d4) == skip_sum
 
     @expandable
-    def roll_sum_skip_p_with_selection(result: PResult) -> RealLike:
-        return sum(result.roll)
+    def roll_sum_skip_p_with_selection(result: PResult) -> Realish:
+        return as_realish(sum(result.roll))
 
     assert (
         roll_sum_skip_p_with_selection(PWithSelection(p_6d4, (slice(1, None, 2),)))
@@ -297,13 +296,13 @@ def test_expandable_equivalence_homogeneous_pool() -> None:
     )
 
     @expandable
-    def roll_sum_window_p(result: PResult) -> RealLike:
+    def roll_sum_window_p(result: PResult) -> Realish:
         return result.roll[2] + result.roll[4]
 
     assert roll_sum_window_p(p_6d4) == window_sum
 
     @expandable
-    def roll_sum_window_p_with_selection(result: PResult) -> RealLike:
+    def roll_sum_window_p_with_selection(result: PResult) -> Realish:
         return result.roll[0] + result.roll[2]
 
     assert (
@@ -383,7 +382,7 @@ def test_expandable_accommodates_h_with_zero_total() -> None:
         FIVES_OR_SIXES = auto()
 
     def func(p_result: PResult) -> H:
-        c = Counter(p_result.roll)
+        c: Counter[Numberish] = Counter(p_result.roll)
 
         return H({Result.ONES: c[1], Result.FIVES_OR_SIXES: c[5] + c[6]})
 

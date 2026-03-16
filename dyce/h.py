@@ -45,19 +45,23 @@ from operator import (
     __truediv__,
     __xor__,
 )
-from typing import Literal, TypeVar, Union, cast, overload
+from typing import Literal, TypeVar, Union, cast, overload, runtime_checkable
 
-from numerary import RealLike
+from beartype.typing import SupportsInt
 from numerary.bt import beartype
-from numerary.protocol import CachingProtocolMeta
-from numerary.types import Protocol, SupportsInt, runtime_checkable
 
 from . import rng
 from .lifecycle import experimental
 from .types import (
-    _BinaryOperatorT,
-    _UnaryOperatorT,
+    BinaryOperatorT,
+    Numberish,
+    Protocol,
+    ProtocolMeta,
+    Realish,
+    RealishLike,
+    UnaryOperatorT,
     as_int,
+    as_realish,
     is_even,
     is_odd,
     natural_key,
@@ -83,20 +87,20 @@ _ = """
 
 # TODO(posita): Get rid of Union in favor of | notation once we can use proper forward
 # references. See <https://github.com/beartype/beartype/issues/152>.
-HOrOutcomeT = Union["H", RealLike]
+OutcomeT = Realish
+HOrOutcomeT = Union["H", OutcomeT]
 _T = TypeVar("_T")
-_MappingT = Mapping[RealLike, int]
+_HMappingT = Mapping[OutcomeT, int]
 _SourceT = Union[
     SupportsInt,
-    Iterable[RealLike],
-    Iterable[tuple[RealLike, SupportsInt]],
-    _MappingT,
+    Iterable[Numberish],
+    Iterable[tuple[Numberish, SupportsInt]],
+    Mapping[Numberish, SupportsInt],
+    _HMappingT,
     "HableT",
 ]
-_OperandT = Union[RealLike, "H", "HableT"]
-_OutcomeCountT = tuple[RealLike, int]
-_SubstituteExpandCallbackT = Callable[["H", RealLike], HOrOutcomeT]
-_SubstituteCoalesceCallbackT = Callable[["H", RealLike], "H"]
+_OperandT = Union[RealishLike, "H", "HableT"]
+_OutcomeCountT = tuple[OutcomeT, int]
 
 
 # ---- Data ----------------------------------------------------------------------------
@@ -111,7 +115,7 @@ except (KeyError, ValueError):
 # ---- Classes -------------------------------------------------------------------------
 
 
-class H(_MappingT):
+class H(_HMappingT):
     r"""
     An immutable mapping for use as a histogram which supports arithmetic operations.
     This is useful for modeling discrete outcomes, like individual dice. ``#!python H``
@@ -374,7 +378,7 @@ class H(_MappingT):
     def __init__(self, items: _SourceT) -> None:
         r"Initializer."
         super().__init__()
-        self._h: _MappingT
+        self._h: dict[OutcomeT, int]
 
         if isinstance(items, H):
             self._h = items._h  # noqa: SLF001
@@ -387,44 +391,62 @@ class H(_MappingT):
                     simple_init if simple_init < 0 else 1,
                     0 if simple_init < 0 else simple_init + 1,
                 )
-                assert isinstance(items, RealLike)
-                outcome_type = type(items)
+                outcome_type = cast(
+                    "Callable[[Numberish], OutcomeT]",
+                    type(items),
+                )
                 self._h = {outcome_type(i): 1 for i in outcome_range}
         elif isinstance(items, HableT):
             self._h = items.h()._h  # noqa: SLF001
-        elif isinstance(items, Iterable):
-            if isinstance(items, Mapping):
-                items = items.items()
+        elif isinstance(items, Iterable):  # type: ignore [unsafe-overlap, unused-ignore] # ty: ignore [unused-ignore-comment]
 
-            # items is either an Iterable[RealLike] or an Iterable[tuple[RealLike,
-            # SupportsInt]] (although this technically supports Iterable[RealLike |
-            # tuple[RealLike, SupportsInt]])
-            self._h = {}
-            sorted_items = list(items)
+            def _outcome_count_gen(
+                items: Iterable[Numberish] | Iterable[tuple[Numberish, SupportsInt]],
+            ) -> Iterator[tuple[OutcomeT, int]]:
+                outcome: RealishLike
+                count: int
+                # items should either be a list[Numberish] or a list[tuple[Numberish,
+                # SupportsInt]], but this technically supports list[Numberish |
+                # tuple[Numberish, SupportsInt]])
+                for item in items:
+                    if isinstance(item, tuple):
+                        outcome, count_supports_int = cast(
+                            "tuple[Realish, SupportsInt]", item
+                        )
+                        count = as_int(count_supports_int)
+                    else:
+                        outcome = as_realish(item)
+                        count = 1
+                    yield outcome, count
+
+            if isinstance(items, Mapping):
+                outcome_counts = list(
+                    _outcome_count_gen(
+                        cast("Iterable[tuple[Numberish, SupportsInt]]", items.items())
+                    )
+                )
+            else:
+                outcome_counts = list(_outcome_count_gen(items))
 
             try:
-                sorted_items.sort()
+                outcome_counts.sort()
             except TypeError:
-                sorted_items.sort(key=natural_key)
+                outcome_counts.sort(key=natural_key)
+
+            self._h = {}
 
             # As of Python 3.7, insertion order of keys is preserved
-            for item in sorted_items:
-                if isinstance(item, tuple):
-                    outcome, count = item
-                    count = as_int(count)
-                else:
-                    outcome = item
-                    count = 1
-
-                if count < 0:
-                    raise ValueError(f"count for {outcome} cannot be negative")
-
+            for outcome, count in outcome_counts:
                 if outcome not in self._h:
                     self._h[outcome] = 0
 
                 self._h[outcome] += count
         else:
             raise TypeError(f"unrecognized initializer type {items!r}")
+
+        for outcome, count in self._h.items():
+            if count < 0:
+                raise ValueError(f"count for {outcome} cannot be negative")
 
         # We can't use something like functools.lru_cache for these values because those
         # mechanisms call this object's __hash__ method which relies on both of these
@@ -434,11 +456,11 @@ class H(_MappingT):
         self._lowest_terms: H | None = None
 
         # We don't use functools' caching mechanisms generally because they don't
-        # present a good mechanism for scoping the cache to object instances such that
-        # the cache will be purged when the object is deleted. functools.cached_property
-        # is an exception, but it requires that objects have proper __dict__ values,
-        # which Hs do not. So we basically do what functools.cached_property does, but
-        # without a __dict__.
+        # present an option for scoping the cache to object instances such that the
+        # cache will be purged when the object is deleted. functools.cached_property is
+        # an exception, but it requires that objects have proper __dict__ values, which
+        # Hs do not. So we basically do what functools.cached_property does, but without
+        # a __dict__.
         self._order_stat_funcs_by_n: dict[int, Callable[[int], H]] = {}
 
     # ---- Overrides -------------------------------------------------------------------
@@ -481,19 +503,19 @@ class H(_MappingT):
         return len(self._h)
 
     @beartype
-    def __getitem__(self, key: RealLike) -> int:
+    def __getitem__(self, key: RealishLike) -> int:
         return __getitem__(self._h, key)
 
     @beartype
-    def __iter__(self) -> Iterator[RealLike]:
+    def __iter__(self) -> Iterator[OutcomeT]:
         yield from self._h
 
     @beartype
-    def __reversed__(self) -> Iterator[RealLike]:
+    def __reversed__(self) -> Iterator[OutcomeT]:
         return reversed(self._h)
 
     @beartype
-    def __contains__(self, key: RealLike) -> bool:  # type: ignore [override]
+    def __contains__(self, key: RealishLike) -> bool:  # type: ignore [override]
         return key in self._h
 
     @beartype
@@ -504,7 +526,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __radd__(self, other: RealLike) -> "H":
+    def __radd__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __add__)
         except NotImplementedError:
@@ -518,7 +540,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rsub__(self, other: RealLike) -> "H":
+    def __rsub__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __sub__)
         except NotImplementedError:
@@ -532,7 +554,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rmul__(self, other: RealLike) -> "H":
+    def __rmul__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __mul__)
         except NotImplementedError:
@@ -562,7 +584,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rtruediv__(self, other: RealLike) -> "H":
+    def __rtruediv__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __truediv__)
         except NotImplementedError:
@@ -576,7 +598,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rfloordiv__(self, other: RealLike) -> "H":
+    def __rfloordiv__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __floordiv__)
         except NotImplementedError:
@@ -590,7 +612,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rmod__(self, other: RealLike) -> "H":
+    def __rmod__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __mod__)
         except NotImplementedError:
@@ -604,7 +626,7 @@ class H(_MappingT):
             return NotImplemented
 
     @beartype
-    def __rpow__(self, other: RealLike) -> "H":
+    def __rpow__(self, other: RealishLike) -> "H":
         try:
             return self.rmap(other, __pow__)
         except NotImplementedError:
@@ -685,22 +707,22 @@ class H(_MappingT):
         return self._h.values()
 
     @beartype
-    def items(self) -> ItemsView[RealLike, int]:
+    def items(self) -> ItemsView[OutcomeT, int]:
         return self._h.items()
 
     @beartype
-    def keys(self) -> KeysView[RealLike]:
+    def keys(self) -> KeysView[OutcomeT]:
         return self.outcomes()
 
     @beartype
-    def outcomes(self) -> KeysView[RealLike]:
+    def outcomes(self) -> KeysView[OutcomeT]:
         r"""
         More descriptive synonym for the [``keys`` method][dyce.h.H.keys].
         """
         return self._h.keys()
 
     @beartype
-    def reversed(self) -> Iterator[RealLike]:
+    def reversed(self) -> Iterator[OutcomeT]:
         return reversed(self)
 
     @beartype
@@ -710,6 +732,7 @@ class H(_MappingT):
     # ---- Properties ------------------------------------------------------------------
 
     @property
+    @experimental
     def total(self) -> int:
         r"""
         !!! warning "Experimental"
@@ -724,7 +747,7 @@ class H(_MappingT):
     # ---- Methods ---------------------------------------------------------------------
 
     @beartype
-    def map(self, bin_op: _BinaryOperatorT, right_operand: _OperandT) -> "H":
+    def map(self, bin_op: BinaryOperatorT, right_operand: _OperandT) -> "H":
         r"""
         Applies *bin_op* to each outcome of the histogram as the left operand and
         *right_operand* as the right. Shorthands exist for many arithmetic operators and
@@ -771,7 +794,7 @@ class H(_MappingT):
             )
 
     @beartype
-    def rmap(self, left_operand: RealLike, bin_op: _BinaryOperatorT) -> "H":
+    def rmap(self, left_operand: RealishLike, bin_op: BinaryOperatorT) -> "H":
         r"""
         Analogous to the [``map`` method][dyce.h.H.map], but where the caller supplies
         *left_operand*.
@@ -797,7 +820,7 @@ class H(_MappingT):
         )
 
     @beartype
-    def umap(self, un_op: _UnaryOperatorT) -> "H":
+    def umap(self, un_op: UnaryOperatorT) -> "H":
         r"""
         Applies *un_op* to each outcome of the histogram.
 
@@ -952,10 +975,14 @@ class H(_MappingT):
 
         return type(self)(cast("_SourceT", chain(self.items(), other.items())))
 
+    @experimental
     @beartype
     def draw(
         self,
-        outcomes: RealLike | Iterable[RealLike] | _MappingT | None = None,
+        outcomes: RealishLike
+        | Iterable[RealishLike]
+        | Mapping[RealishLike, SupportsInt]
+        | None = None,
     ) -> "H":
         r"""
         !!! warning "Experimental"
@@ -1016,11 +1043,14 @@ class H(_MappingT):
         if outcomes is None:
             return self.draw(self.roll())
 
-        if isinstance(outcomes, RealLike):
-            outcomes = (outcomes,)
+        to_draw_outcome_counts: Counter[OutcomeT]
 
-        to_draw_outcome_counts = Counter(outcomes)
-        self_outcome_counts = Counter(self)
+        if not isinstance(outcomes, (Iterable, Mapping)):
+            to_draw_outcome_counts = Counter((outcomes,))
+        else:
+            to_draw_outcome_counts = Counter(outcomes)
+
+        self_outcome_counts = Counter(self._h)
         # This approach is necessary because Counter.__sub__ does not preserve negative
         # counts and Counter.subtract modifies the counter in-place
         new_outcome_counts = Counter(self_outcome_counts)
@@ -1041,7 +1071,7 @@ class H(_MappingT):
     @beartype
     def exactly_k_times_in_n(
         self,
-        outcome: RealLike,
+        outcome: RealishLike,
         n: SupportsInt,
         k: SupportsInt,
     ) -> int:
@@ -1205,7 +1235,7 @@ class H(_MappingT):
         return self._order_stat_funcs_by_n[n](pos)
 
     @beartype
-    def remove(self, outcome: RealLike) -> "H":
+    def remove(self, outcome: RealishLike) -> "H":
         if outcome not in self:
             return self
 
@@ -1236,7 +1266,7 @@ class H(_MappingT):
         return self.within(0, 0, other)
 
     @beartype
-    def within(self, lo: RealLike, hi: RealLike, other: _OperandT = 0) -> "H":
+    def within(self, lo: RealishLike, hi: RealishLike, other: _OperandT = 0) -> "H":
         r"""
         Computes the difference between the histogram and *other*. -1 represents where that
         difference is less than *lo*. 0 represents where that difference between *lo*
@@ -1273,7 +1303,7 @@ class H(_MappingT):
         return self.map(_within(lo, hi), other)
 
     @beartype
-    def zero_fill(self, outcomes: Iterable[RealLike]) -> "H":
+    def zero_fill(self, outcomes: Iterable[RealishLike]) -> "H":
         r"""
         Shorthand for ``#!python self.accumulate({outcome: 0 for outcome in
         outcomes})``.
@@ -1289,20 +1319,20 @@ class H(_MappingT):
     @overload
     def distribution(
         self,
-    ) -> Iterator[tuple[RealLike, Fraction]]: ...
+    ) -> Iterator[tuple[OutcomeT, Fraction]]: ...
 
     @overload
     def distribution(
         self,
         rational_t: Callable[[int, int], _T],
-    ) -> Iterator[tuple[RealLike, _T]]: ...
+    ) -> Iterator[tuple[OutcomeT, _T]]: ...
 
     @experimental
     @beartype
     def distribution(
         self,
         rational_t: Callable[[int, int], _T] | None = None,
-    ) -> Iterator[tuple[RealLike, _T]]:
+    ) -> Iterator[tuple[OutcomeT, _T]]:
         r"""
         Presentation helper function returning an iterator for each outcome/count or
         outcome/probability pair.
@@ -1390,7 +1420,7 @@ class H(_MappingT):
     @beartype
     def distribution_xy(
         self,
-    ) -> tuple[tuple[RealLike, ...], tuple[float, ...]]:
+    ) -> tuple[tuple[OutcomeT, ...], tuple[float, ...]]:
         r"""
         Presentation helper function returning an iterator for a “zipped” arrangement of the
         output from the [``distribution`` method][dyce.h.H.distribution] and ensures the
@@ -1404,13 +1434,16 @@ class H(_MappingT):
 
         ```
         """
-        return tuple(
-            zip(
-                *(
-                    (outcome, float(probability))
-                    for outcome, probability in self.distribution()
+        return cast(
+            "tuple[tuple[OutcomeT, ...], tuple[float, ...]]",
+            tuple(
+                zip(
+                    *(
+                        (outcome, float(probability))
+                        for outcome, probability in self.distribution()
+                    ),
+                    strict=True,
                 ),
-                strict=True,
             ),
         )
 
@@ -1494,7 +1527,7 @@ class H(_MappingT):
         # tower implementations sometimes neglect to implement __format__ properly (or
         # at all). (I'm looking at you, sage.rings.…!)
         try:
-            mu: RealLike = float(self.mean())
+            mu = float(self.mean())
         except (OverflowError, TypeError):
             mu = self.mean()
 
@@ -1544,37 +1577,43 @@ class H(_MappingT):
             return sep.join(_lines())
 
     @beartype
-    def mean(self) -> RealLike:
+    def mean(self) -> float:
+        return float(self._mean())
+
+    @beartype
+    def _mean(self) -> OutcomeT:
         r"""
         Returns the mean of the weighted outcomes (or 0.0 if there are no outcomes).
         """
-        numerator: float
-        denominator: float
-        numerator = denominator = 0
+        # This assumes that whatever H contains, it can interact with ints
+        numerator = as_realish(0)
+        denominator = 0
 
         for outcome, count in self.items():
             numerator += outcome * count
             denominator += count
 
-        return numerator / (denominator or 1)
+        return numerator / (denominator or as_realish(1))
 
     @beartype
-    def stdev(self, mu: RealLike | None = None) -> RealLike:
+    def stdev(self, mu: float | None = None) -> float:
         r"""
         Shorthand for ``#!python math.sqrt(self.variance(mu))``.
         """
         return sqrt(self.variance(mu))
 
     @beartype
-    def variance(self, mu: RealLike | None = None) -> RealLike:
+    def variance(self, mu: float | None = None) -> float:
+        return float(self._variance(mu))
+
+    @beartype
+    def _variance(self, mu: float | None = None) -> OutcomeT:
         r"""
         Returns the variance of the weighted outcomes. If provided, *mu* is used as the mean
         (to avoid duplicate computation).
         """
-        mu = mu or self.mean()
-        numerator: int
-        denominator: int
-        numerator = denominator = 0
+        realish_mu: RealishLike = mu or self._mean()
+        numerator = denominator = as_realish(0)
 
         for outcome, count in self.items():
             numerator += outcome**2 * count
@@ -1584,10 +1623,10 @@ class H(_MappingT):
         # some circumstances by exploiting the equivalence of E[(X - E[X])**2] and the
         # more efficient E[X**2] - E[X]**2. See
         # <https://dlsun.github.io/probability/variance.html>.
-        return numerator / (denominator or 1) - mu**2
+        return numerator / (denominator or as_realish(1)) - realish_mu ** as_realish(2)
 
     @beartype
-    def roll(self) -> RealLike:
+    def roll(self) -> OutcomeT:
         r"""
         Returns a (weighted) random outcome.
         """
@@ -1598,11 +1637,11 @@ class H(_MappingT):
                 k=1,
             )[0]
             if self
-            else 0
+            else as_realish(0)
         )
 
     def _order_stat_func_for_n(self, n: int) -> Callable[[int], "H"]:
-        betas_by_outcome: dict[RealLike, tuple[H, H]] = {}
+        betas_by_outcome: dict[OutcomeT, tuple[H, H]] = {}
 
         for outcome in self.outcomes():
             betas_by_outcome[outcome] = (
@@ -1614,7 +1653,8 @@ class H(_MappingT):
             for outcome, (h_le, h_lt) in betas_by_outcome.items():
                 yield (
                     outcome,
-                    h_le.gt(pos).get(True, 0) - h_lt.gt(pos).get(True, 0),
+                    h_le.gt(pos).get(as_realish(True), 0)  # noqa: FBT003
+                    - h_lt.gt(pos).get(as_realish(True), 0),  # noqa: FBT003
                 )
 
         @beartype
@@ -1625,7 +1665,7 @@ class H(_MappingT):
 
 
 @runtime_checkable
-class HableT(Protocol, metaclass=CachingProtocolMeta):
+class HableT(Protocol, metaclass=ProtocolMeta):
     r"""
     A protocol whose implementer can be expressed as (or reduced to) an
     [``H`` object][dyce.h.H] by calling its [``h`` method][dyce.h.HableT.h]. Currently,
@@ -1681,7 +1721,7 @@ class HableOpsMixin(HableT):
         return __add__(self.h(), other)
 
     @beartype
-    def __radd__(self: HableT, other: RealLike) -> H:
+    def __radd__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__add__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1697,7 +1737,7 @@ class HableOpsMixin(HableT):
         return __sub__(self.h(), other)
 
     @beartype
-    def __rsub__(self: HableT, other: RealLike) -> H:
+    def __rsub__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__sub__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1713,7 +1753,7 @@ class HableOpsMixin(HableT):
         return __mul__(self.h(), other)
 
     @beartype
-    def __rmul__(self: HableT, other: RealLike) -> H:
+    def __rmul__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__mul__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1729,7 +1769,7 @@ class HableOpsMixin(HableT):
         return __truediv__(self.h(), other)
 
     @beartype
-    def __rtruediv__(self: HableT, other: RealLike) -> H:
+    def __rtruediv__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__truediv__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1745,7 +1785,7 @@ class HableOpsMixin(HableT):
         return __floordiv__(self.h(), other)
 
     @beartype
-    def __rfloordiv__(self: HableT, other: RealLike) -> H:
+    def __rfloordiv__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__floordiv__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1761,7 +1801,7 @@ class HableOpsMixin(HableT):
         return __mod__(self.h(), other)
 
     @beartype
-    def __rmod__(self: HableT, other: RealLike) -> H:
+    def __rmod__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__mod__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1777,7 +1817,7 @@ class HableOpsMixin(HableT):
         return __pow__(self.h(), other)
 
     @beartype
-    def __rpow__(self: HableT, other: RealLike) -> H:
+    def __rpow__(self: HableT, other: RealishLike) -> H:
         r"""
         Shorthand for ``#!python operator.__pow__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1929,7 +1969,9 @@ class HableOpsMixin(HableT):
         return self.h().is_odd()
 
     @beartype
-    def within(self: HableT, lo: RealLike, hi: RealLike, other: _OperandT = 0) -> H:
+    def within(
+        self: HableT, lo: RealishLike, hi: RealishLike, other: _OperandT = 0
+    ) -> H:
         r"""
         Shorthand for ``#!python self.h().within(lo, hi, other)``. See the
         [``h`` method][dyce.h.HableT.h] and [``H.within``][dyce.h.H.within].
@@ -1949,15 +1991,15 @@ def sum_h(hs: Iterable[H]) -> H:
     """
     h_sum: H | Literal[0] = sum(hs)
 
-    return cast("H", H({}) if h_sum == 0 else h_sum)
+    return h_sum if isinstance(h_sum, H) else H({})
 
 
 @beartype
-def _within(lo: RealLike, hi: RealLike) -> _BinaryOperatorT:
+def _within(lo: RealishLike, hi: RealishLike) -> BinaryOperatorT:
     if __gt__(lo, hi):
         raise ValueError(f"lower bound ({lo}) is greater than upper bound ({hi})")
 
-    def _cmp(a: RealLike, b: RealLike) -> int:
+    def _cmp(a: RealishLike, b: RealishLike) -> int:
         # This approach will probably not work with most symbolic outcomes
         diff = a - b
 

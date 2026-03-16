@@ -175,7 +175,7 @@ However, if we recognize that our problem involves a [dependent probability](cou
 We can also deploy a counting trick with the two d10s.
 
 ``` python
->>> from dyce import H, as_int
+>>> from dyce import H
 >>> from dyce.evaluation import foreach
 >>> from numerary.types import RealLike
 >>> from enum import IntEnum, auto
@@ -423,6 +423,7 @@ With a little ~~elbow~~ *finger* grease, we can roll up our … erm … fingerle
 >>> from collections.abc import Callable
 >>> from enum import IntEnum, auto
 >>> from functools import cache
+>>> from typing import cast
 
 >>> class Risus(IntEnum):
 ...   LOSS = -1
@@ -446,7 +447,7 @@ With a little ~~elbow~~ *finger* grease, we can roll up our … erm … fingerle
 ...     this_round = us_vs_them_func(us, them)
 ...
 ...     def _next_round(this_round: HResult) -> H:
-...       match this_round.outcome:
+...       match cast("Risus", this_round.outcome):
 ...         case Risus.LOSS: return _resolve(us - 1, them)  # we lost this round, and one die
 ...         case Risus.WIN: return _resolve(us, them - 1)  # they lost this round, and one die
 ...         case Risus.DRAW: return H({})  # ignore (immediately re-roll) all ties

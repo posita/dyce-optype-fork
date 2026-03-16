@@ -7,7 +7,9 @@
 # software in any capacity.
 # ======================================================================================
 
-# ruff: noqa: T201
+# ruff: noqa: S404 # `subprocess` module is possibly insecure
+# ruff: noqa: S603 # `subprocess` call: check for execution of untrusted input
+# ruff: noqa: S607 # Starting a process with a partial executable path
 
 import argparse
 import doctest
@@ -16,6 +18,7 @@ import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping
@@ -74,8 +77,8 @@ PARSER.add_argument(
 PARSER.add_argument(
     "--tmp-file-suffix",
     metavar="SUFFIX",
-    help='use SUFFIX when creating temporary files (default: ".doctest.py")',
-    default=".doctest.py",
+    help='use SUFFIX when creating temporary files (default: "_doctest.py")',
+    default="_doctest.py",
 )
 PARSER.add_argument(
     "-k",
@@ -98,6 +101,8 @@ PARSER.add_argument(
     metavar="PATH",
 )
 
+
+logging.basicConfig()
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -141,8 +146,12 @@ def copy_paths(
 
     for orig_path in orig_paths:
         src_path = orig_path.resolve()
-        dst_path = dst_dir_path.joinpath(src_path.relative_to(cwd_path))
-        dst_path = dst_path.with_name(dst_path.name + parsed_args.tmp_file_suffix)
+        rel_src_path = src_path.relative_to(cwd_path)
+        dst_path = dst_dir_path.joinpath(
+            rel_src_path.with_name(
+                rel_src_path.name.replace(".", "_") + parsed_args.tmp_file_suffix
+            )
+        )
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         _LOGGER.debug("checking %s", orig_path)
 
@@ -208,24 +217,44 @@ def main(*args: str) -> int:
     )
 
     try:
-        results = mypy.api.run([*parsed_args.mypy_args, str(dst_dir)])
+        mixed_results: list[tuple[str, str, int]] = []
+        mixed_results.append(mypy.api.run([*parsed_args.mypy_args, dst_dir]))
+        res = subprocess.run(
+            [
+                "ty",
+                "check",
+                "--python-version",
+                ".".join(str(i) for i in sys.version_info[:2]),
+                dst_dir,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        mixed_results.append((res.stdout, res.stderr, res.returncode))
 
-        if results[0]:
-            for line in results[0].rstrip("\n").split("\n"):
-                if line.startswith(str(dst_dir)):
-                    p, rest = line.split(":", 1)
-                    path = pathlib.Path(p)
-                    line = f"{dst_paths_to_orig_paths.get(path, path)!s}:{rest}"
+        for results in mixed_results:
+            if results[0]:
+                stdout = results[0]
 
-                print(line)
+                for dst_path, orig_path in dst_paths_to_orig_paths.items():
+                    stdout = stdout.replace(str(dst_path), str(orig_path))
 
-        if results[1]:
-            sys.stderr.write(results[1])
+                sys.stdout.write(stdout)
 
-        return results[2]
+            if results[1]:
+                stderr = results[1]
+
+                for dst_path, orig_path in dst_paths_to_orig_paths.items():
+                    stderr = stderr.replace(str(dst_path), str(orig_path))
+
+                sys.stderr.write(stderr)
+
+        return any(results[2] != 0 for results in mixed_results)
     finally:
         if parsed_args.keep_tmp_files:
-            print(f"leaving temporary files in {dst_dir_path}", file=sys.stderr)
+            sys.stdout.write(
+                f"leaving temporary files in {dst_dir_path}", file=sys.stderr
+            )
         else:
             _LOGGER.debug("removing %s", dst_dir_path)
             shutil.rmtree(dst_dir)
