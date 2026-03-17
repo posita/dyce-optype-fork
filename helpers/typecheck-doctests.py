@@ -9,7 +9,6 @@
 
 # ruff: noqa: S404 # `subprocess` module is possibly insecure
 # ruff: noqa: S603 # `subprocess` call: check for execution of untrusted input
-# ruff: noqa: S607 # Starting a process with a partial executable path
 
 import argparse
 import doctest
@@ -17,6 +16,7 @@ import logging
 import os
 import pathlib
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -52,10 +52,9 @@ PARSER.add_argument(
 )
 # Adapted from
 # <https://mypy.readthedocs.io/en/stable/command_line.html#cmdoption-mypy-exclude>
-_DEFAULT_EXCLUDE_RE = r"\A(\..*|__pycache__|dist|site|.*\.egg-info)\Z"
+_DEFAULT_EXCLUDE_RE = r"\A\..*"
 PARSER.add_argument(
     "--exclude-dir-names",
-    "--exclude",
     metavar="PATTERN",
     help=f'exclude directories matching PATTERN from inspection (default: "{_DEFAULT_EXCLUDE_RE}")',
     default=_DEFAULT_EXCLUDE_RE,
@@ -211,6 +210,7 @@ def main(*args: str) -> int:
     _LOGGER.setLevel(parsed_args.log_level)
     dst_dir = tempfile.mkdtemp()
     dst_dir_path = pathlib.Path(dst_dir)
+    proj_dir_path = pathlib.Path(sys.argv[0]).resolve().parent.parent
     _LOGGER.debug("created temporary directory %s", dst_dir_path)
     dst_paths_to_orig_paths = copy_paths(
         parsed_args, dst_dir_path, gather_paths(parsed_args)
@@ -218,18 +218,20 @@ def main(*args: str) -> int:
 
     try:
         mixed_results: list[tuple[str, str, int]] = []
-        mixed_results.append(mypy.api.run([*parsed_args.mypy_args, dst_dir]))
-        res = subprocess.run(
-            [
-                "ty",
-                "check",
-                "--python-version",
-                ".".join(str(i) for i in sys.version_info[:2]),
-                dst_dir,
-            ],
-            capture_output=True,
-            text=True,
-        )
+        mypy_args = [*parsed_args.mypy_args, dst_dir]
+        _LOGGER.debug("> mypy.api.run(%r)", mypy_args)
+        mixed_results.append(mypy.api.run(mypy_args))
+        ty_args = [
+            "ty",
+            "check",
+            "--project",
+            str(proj_dir_path),
+            "--python-version",
+            ".".join(str(i) for i in sys.version_info[:2]),
+            dst_dir,
+        ]
+        _LOGGER.debug("> %s", shlex.join(ty_args))
+        res = subprocess.run(ty_args, capture_output=True, text=True)
         mixed_results.append((res.stdout, res.stderr, res.returncode))
 
         for results in mixed_results:
@@ -252,9 +254,7 @@ def main(*args: str) -> int:
         return any(results[2] != 0 for results in mixed_results)
     finally:
         if parsed_args.keep_tmp_files:
-            sys.stdout.write(
-                f"leaving temporary files in {dst_dir_path}", file=sys.stderr
-            )
+            sys.stdout.write(f"leaving temporary files in {dst_dir_path}")
         else:
             _LOGGER.debug("removing %s", dst_dir_path)
             shutil.rmtree(dst_dir)

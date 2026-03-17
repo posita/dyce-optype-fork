@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from anydyce.viz import plot_line
 
 from dyce import H, P
-from dyce.types import Realish
+from dyce.types import Numberish, Realish
 
 
 def do_it(style: str) -> None:
@@ -22,7 +22,9 @@ def do_it(style: str) -> None:
         max_d = max(p[-1]) if p else 0
 
         for roll, count in p.rolls_with_counts():
-            total = sum(roll[-k:]) + sum(1 for outcome in roll[:-k] if outcome == max_d)
+            total: Numberish = sum(roll[-k:]) + sum(
+                1 for outcome in roll[:-k] if outcome == max_d
+            )
             yield total, count
 
     d, k = 6, 3

@@ -7,10 +7,10 @@
 # ======================================================================================
 
 from anydyce.viz import plot_burst, plot_line
-from numerary import RealLike
 
 from dyce import H
 from dyce.evaluation import HResult, foreach
+from dyce.types import Numberish
 
 
 def do_it(style: str) -> None:
@@ -18,7 +18,7 @@ def do_it(style: str) -> None:
 
     single_attack = 2 @ H(6) + 5
 
-    def gwf(result: HResult) -> H | RealLike:
+    def gwf(result: HResult) -> H | Numberish:
         return result.h if result.outcome in (1, 2) else result.outcome
 
     great_weapon_fighting = 2 @ foreach(gwf, result=H(6)) + 5

@@ -17,6 +17,7 @@ from typing import (
     Any,
     TypeVar,
     Union,
+    cast,
     overload,
     runtime_checkable,
 )
@@ -445,22 +446,22 @@ def as_integralish_ratio(
 
     ```
     """
-    if hasattr(operand, "as_integer_ratio") and callable(operand.as_integer_ratio):
-        return operand.as_integer_ratio()
+    if hasattr(operand, "as_integer_ratio") and callable(operand.as_integer_ratio):  # pyright: ignore [reportAttributeAccessIssue]
+        return cast("tuple[Integralish, Integralish]", operand.as_integer_ratio())  # pyright: ignore [reportAttributeAccessIssue] # ty: ignore [call-top-callable]
 
-    numerator: Integralish
-    denominator: Integralish
+    numerator: IntegralishLike
+    denominator: IntegralishLike
 
     if hasattr(operand, "numerator") and hasattr(operand, "denominator"):
-        if callable(operand.numerator):
-            numerator = operand.numerator()
+        if callable(operand.numerator):  # pyright: ignore [reportAttributeAccessIssue]
+            numerator = operand.numerator()  # pyrefly: ignore [bad-assignment] # pyright: ignore [reportAssignmentType, reportAttributeAccessIssue] # ty: ignore [call-top-callable, invalid-assignment]
         else:
-            numerator = operand.numerator
+            numerator = operand.numerator  # pyrefly: ignore [bad-assignment] # pyright: ignore [reportAssignmentType, reportAttributeAccessIssue] # ty: ignore [invalid-assignment]
 
-        if callable(operand.denominator):
-            denominator = operand.denominator()
+        if callable(operand.denominator):  # pyright: ignore [reportAttributeAccessIssue]
+            denominator = operand.denominator()  # pyrefly: ignore [bad-assignment] # pyright: ignore [reportAssignmentType, reportAttributeAccessIssue] # ty: ignore [call-top-callable, invalid-assignment]
         else:
-            denominator = operand.denominator
+            denominator = operand.denominator  # pyrefly: ignore [bad-assignment] # pyright: ignore [reportAssignmentType, reportAttributeAccessIssue] # ty: ignore [invalid-assignment]
 
         return (numerator, denominator)
 
@@ -504,7 +505,7 @@ def sorted_outcomes(vals: Iterable[_T]) -> list[_T]:
     vals = list(vals)
 
     try:
-        vals.sort()
+        vals.sort()  # pyrefly: ignore [no-matching-overload] # pyright: ignore [reportCallIssue] # ty: ignore [invalid-argument-type]
     except TypeError:
         # This is for outcomes that don't support direct comparisons, like symbolic
         # representations

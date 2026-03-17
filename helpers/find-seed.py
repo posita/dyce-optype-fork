@@ -21,7 +21,7 @@ __all__ = ()
 # ---- Data ----------------------------------------------------------------------------
 
 
-_EXEC_GLOBALS = {}  # type: ignore [var-annotated]
+_EXEC_GLOBALS: dict[str, object] = {}
 
 
 def _positive_int(val: str) -> int:

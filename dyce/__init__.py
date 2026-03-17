@@ -25,7 +25,12 @@ __version__: _VersionT
 __vers_str__: str
 
 try:
-    from ._version import __vers_str__, __version__
+    from ._version import (  # type: ignore [import-not-found, no-redef, unused-ignore] # ty: ignore # ty: ignore [unused-ignore-comment]
+        __vers_str__ as __vers_str__,
+    )
+    from ._version import (  # type: ignore [import-not-found, no-redef, unused-ignore] # ty: ignore # ty: ignore [unused-ignore-comment]
+        __version__ as __version__,
+    )
 except ImportError:
-    __version__ = (0, 0, 0, "post0", "unknown", "d00000000")
-    __vers_str__ = "0.0.0.post0+unknown.d00000000"
+    __version__ = (0, 0, 0, "post0", "unknown", "d00000000")  # ty: ignore [conflicting-declarations]
+    __vers_str__ = "0.0.0.post0+unknown.d00000000"  # ty: ignore [conflicting-declarations]

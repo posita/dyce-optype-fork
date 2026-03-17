@@ -35,12 +35,6 @@ __all__ = ()
 
 _ = """
 ``` python
->>> import sage  # type: ignore [import-not-found]
->>> import sage.rings  # type: ignore [import-not-found]
->>> import sage.rings.rational  # type: ignore [import-not-found]
->>> import sympy  # type: ignore [import-untyped]
->>> import sympy.abc  # type: ignore [import-untyped]
->>> import sympy.solvers  # type: ignore [import-untyped]
 
 ```
 """
@@ -210,6 +204,7 @@ def expandable(
     proportion as the one’s outcome and count they replaced from the d6.
 
     ``` python
+    >>> from fractions import Fraction
     >>> Fraction(
     ...   sum(count for outcome, count in d6_d00.items() if outcome in d00),
     ...   d6_d00.total,
@@ -660,14 +655,20 @@ def expandable(
                 total = sum(obj.total for obj in objs)
 
                 def _expand_if_we_can_can_can() -> Iterator[tuple[HOrOutcomeT, int]]:
-                    for result_counts in product(
+                    for (
+                        result_counts
+                    ) in product(  # pyrefly: ignore [no-matching-overload]
                         *(
                             _h_or_p_or_p_with_selection_to_result_iterable(obj)
                             for obj in objs
                         )
                     ):
-                        results, counts = zip(*result_counts, strict=True)
-                        combined_count = prod(counts)
+                        results, counts = (  # pyright: ignore [reportArgumentType]
+                            zip(  # pyrefly: ignore [no-matching-overload] # pyright: ignore [reportAssignmentType]
+                                *result_counts, strict=True
+                            )
+                        )
+                        combined_count = prod(counts)  # pyright: ignore [reportArgumentType, reportCallIssue]
                         token = _expandable_ctxt.set(
                             _Context(
                                 normalized_limit=new_norm_limit,
@@ -939,7 +940,7 @@ def explode(
     ``` python
     >>> import sympy
     >>> x = sympy.sympify("x")
-    >>> explode(H({x: 1}), limit=Fraction(1, 10_000))
+    >>> explode(H({x: 1}), limit=Fraction(1, 10_000))  # type: ignore [bad-argument]
     H({oo*x: 1})
 
     ```

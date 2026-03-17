@@ -54,6 +54,7 @@ from . import rng
 from .lifecycle import experimental
 from .types import (
     BinaryOperatorT,
+    IntegralishLike,
     Numberish,
     Protocol,
     ProtocolMeta,
@@ -75,9 +76,6 @@ _ = """
 >>> import sage  # type: ignore [import-not-found]
 >>> import sage.rings  # type: ignore [import-not-found]
 >>> import sage.rings.rational  # type: ignore [import-not-found]
->>> import sympy  # type: ignore [import-untyped]
->>> import sympy.abc  # type: ignore [import-untyped]
->>> import sympy.solvers  # type: ignore [import-untyped]
 
 ```
 """
@@ -1324,14 +1322,14 @@ class H(_HMappingT):
     @overload
     def distribution(
         self,
-        rational_t: Callable[[int, int], _T],
+        rational_t: Callable[[IntegralishLike, IntegralishLike], _T],
     ) -> Iterator[tuple[OutcomeT, _T]]: ...
 
     @experimental
     @beartype
     def distribution(
         self,
-        rational_t: Callable[[int, int], _T] | None = None,
+        rational_t: Callable[[IntegralishLike, IntegralishLike], _T] | None = None,
     ) -> Iterator[tuple[OutcomeT, _T]]:
         r"""
         Presentation helper function returning an iterator for each outcome/count or
