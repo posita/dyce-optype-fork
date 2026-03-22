@@ -93,7 +93,7 @@ We start by creating two histograms[^1] representing our two ten-sided dice (``d
 Next, we create a roller using the [``R.from_values`` class method][dyce.r.R.from_values].
 
 ``` python
->>> r_d100 = R.from_values(d00, d10) ; r_d100
+>>> (r_d100 := R.from_values(d00, d10))
 PoolRoller(
   sources=(
     ValueRoller(value=H({0: 1, 10: 1, 20: 1, 30: 1, 40: 1, 50: 1, 60: 1, 70: 1, 80: 1, 90: 1}), annotation=''),
@@ -263,7 +263,7 @@ For deterministic outcomes.
 
 ``` python
 >>> d12 = H(12)
->>> r_d12_add_4 = ValueRoller(d12) + 4 ; r_d12_add_4
+>>> (r_d12_add_4 := ValueRoller(d12) + 4)
 BinarySumOpRoller(
   bin_op=<built-in function add>,
   left_source=ValueRoller(value=H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1}), annotation=''),
@@ -339,9 +339,9 @@ We start by using the [``R.from_value`` class method][dyce.r.R.from_value] to cr
 ``` python
 >>> d6 = H(6)
 >>> d8 = H(8)
->>> r_d6 = R.from_value(d6) ; r_d6
+>>> (r_d6 := R.from_value(d6))
 ValueRoller(value=H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1}), annotation='')
->>> r_d8 = R.from_value(d8) ; r_d8
+>>> (r_d8 := R.from_value(d8))
 ValueRoller(value=H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1}), annotation='')
 
 ```
@@ -349,7 +349,7 @@ ValueRoller(value=H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1}), annotatio
 For homogeneous pools, we can use the matrix multiplication operator.
 
 ``` python
->>> r_3d6 = 3@r_d6 ; r_3d6
+>>> (r_3d6 := 3@r_d6)
 RepeatRoller(
   n=3,
   source=ValueRoller(value=H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1}), annotation=''),
@@ -361,7 +361,7 @@ RepeatRoller(
 Finally, we’ll create a [``SelectionRoller``][dyce.r.SelectionRoller] by calling the [``R.select_from_sources``][dyce.r.R.select_from_sources] method on our other rollers.
 
 ``` python
->>> r_best_3_of_3d6_d8 = R.select_from_sources((slice(1, None),), r_3d6, r_d8) ; r_best_3_of_3d6_d8
+>>> (r_best_3_of_3d6_d8 := R.select_from_sources((slice(1, None),), r_3d6, r_d8))
 SelectionRoller(
   which=(slice(1, None, None),),
   sources=(
@@ -602,10 +602,10 @@ ValueRoller(value=P(6, 8), annotation='')
 [``FilterRoller``][dyce.r.FilterRoller]s [``euthanize``][dyce.r.RollOutcome.euthanize] outcomes that don’t meet provided criteria.
 
 ``` python
->>> r_filter = R.filter_from_values_iterable(
+>>> (r_filter := R.filter_from_values_iterable(
 ...   lambda outcome: bool(outcome.is_odd().value),
 ...   range(6),
-... ) ; r_filter
+... ))
 FilterRoller(
   predicate=<function <lambda> at ...>,
   sources=(

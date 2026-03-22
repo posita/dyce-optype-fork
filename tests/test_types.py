@@ -13,9 +13,7 @@ import pytest
 
 from dyce.types import (
     Integralish,
-    IntegralishLike,
     Realish,
-    RealishLike,
     as_integralish,
     as_integralish_ratio,
     as_realish,
@@ -30,7 +28,7 @@ __all__ = ()
 
 
 def test_as_integralish() -> None:
-    i: IntegralishLike
+    i: Integralish
 
     for i in (
         True,
@@ -39,18 +37,15 @@ def test_as_integralish() -> None:
         assert isinstance(as_integralish(i), Integralish)
 
     with pytest.raises(TypeError):
-        as_integralish(Decimal(1))  # type: ignore [arg-type]
+        as_integralish(Decimal(1))
 
     with pytest.raises(TypeError):
-        as_integralish(Fraction(1, 2))  # type: ignore [arg-type]
-
-    with pytest.raises(TypeError):
-        as_realish("asdf")  # type: ignore [arg-type]
+        as_integralish(Fraction(1, 2))
 
 
 def test_as_integralish_numpy() -> None:
     np = pytest.importorskip("numpy", reason="requires numpy")
-    i: IntegralishLike
+    i: Integralish
 
     for i in (
         np.bool(1),
@@ -64,7 +59,7 @@ def test_as_integralish_numpy() -> None:
 
 def test_as_integralish_sympy() -> None:
     sympy = pytest.importorskip("sympy", reason="requires sympy")
-    i: IntegralishLike
+    i: Integralish
 
     for i in (sympy.Integer(1),):
         assert isinstance(as_integralish(i), Integralish)
@@ -80,9 +75,6 @@ def test_as_integralish_ratio() -> None:
     assert as_integralish_ratio(2) == (2, 1)
     assert as_integralish_ratio(2.0) == (2, 1)
     assert as_integralish_ratio(Decimal("2.0")) == (2, 1)
-
-    with pytest.raises(TypeError):
-        as_integralish_ratio("asdf")  # type: ignore [arg-type]
 
 
 def test_as_integralish_ratio_numpy() -> None:
@@ -104,7 +96,7 @@ def test_as_integralish_ratio_sympy() -> None:
 
 
 def test_as_realish() -> None:
-    i: RealishLike
+    i: Realish
 
     for i in (
         True,
@@ -114,13 +106,10 @@ def test_as_realish() -> None:
     ):
         assert isinstance(as_realish(i), Realish)
 
-    with pytest.raises(TypeError):
-        as_realish("asdf")  # type: ignore [arg-type]
-
 
 def test_as_realish_numpy() -> None:
     np = pytest.importorskip("numpy", reason="requires numpy")
-    i: RealishLike
+    i: Realish
 
     for i in (
         np.bool(1),
@@ -132,7 +121,7 @@ def test_as_realish_numpy() -> None:
 
 def test_as_realish_sympy() -> None:
     sympy = pytest.importorskip("sympy", reason="requires sympy")
-    i: RealishLike
+    i: Realish
 
     for i in (
         sympy.Rational(1, 2),

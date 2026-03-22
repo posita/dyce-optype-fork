@@ -54,12 +54,10 @@ from . import rng
 from .lifecycle import experimental
 from .types import (
     BinaryOperatorT,
-    IntegralishLike,
-    Numberish,
+    Integralish,
     Protocol,
     ProtocolMeta,
     Realish,
-    RealishLike,
     UnaryOperatorT,
     as_int,
     as_realish,
@@ -73,9 +71,8 @@ __all__ = ("H",)
 
 _ = """
 ``` python
->>> import sage  # type: ignore [import-not-found]
->>> import sage.rings  # type: ignore [import-not-found]
->>> import sage.rings.rational  # type: ignore [import-not-found]
+>>> import sympy  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
+>>> import sympy.abc  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
 
 ```
 """
@@ -91,13 +88,13 @@ _T = TypeVar("_T")
 _HMappingT = Mapping[OutcomeT, int]
 _SourceT = Union[
     SupportsInt,
-    Iterable[Numberish],
-    Iterable[tuple[Numberish, SupportsInt]],
-    Mapping[Numberish, SupportsInt],
+    Iterable[Realish],
+    Iterable[tuple[Realish, SupportsInt]],
+    Mapping[Realish, SupportsInt],
     _HMappingT,
     "HableT",
 ]
-_OperandT = Union[RealishLike, "H", "HableT"]
+_OperandT = Union[Realish, "H", "HableT"]
 _OutcomeCountT = tuple[OutcomeT, int]
 
 
@@ -296,7 +293,7 @@ class H(_HMappingT):
     Or how often at least one ``#!python 2`` will show when rolling four six-sided dice:
 
     ``` python
-    >>> d6_eq2 = d6.eq(2) ; d6_eq2  # how often a 2 shows on a single six-sided die
+    >>> (d6_eq2 := d6.eq(2))  # how often a 2 shows on a single six-sided die
     H({False: 5, True: 1})
     >>> 4@d6_eq2  # count of 2s showing on 4d6
     H({0: 625, 1: 500, 2: 150, 3: 20, 4: 1})
@@ -390,25 +387,23 @@ class H(_HMappingT):
                     0 if simple_init < 0 else simple_init + 1,
                 )
                 outcome_type = cast(
-                    "Callable[[Numberish], OutcomeT]",
+                    "Callable[[Realish], OutcomeT]",
                     type(items),
                 )
                 self._h = {outcome_type(i): 1 for i in outcome_range}
         elif isinstance(items, HableT):
             self._h = items.h()._h  # noqa: SLF001
-        elif isinstance(items, Iterable):  # type: ignore [unsafe-overlap, unused-ignore] # ty: ignore [unused-ignore-comment]
+        elif isinstance(items, Iterable):  # pyrefly: ignore [unsafe-overlap]
 
             def _outcome_count_gen(
-                items: Iterable[Numberish] | Iterable[tuple[Numberish, SupportsInt]],
+                items: Iterable[Realish] | Iterable[tuple[Realish, SupportsInt]],
             ) -> Iterator[tuple[OutcomeT, int]]:
-                outcome: RealishLike
-                count: int
-                # items should either be a list[Numberish] or a list[tuple[Numberish,
-                # SupportsInt]], but this technically supports list[Numberish |
-                # tuple[Numberish, SupportsInt]])
+                # items should either be a list[Realish] or a list[tuple[Realish,
+                # SupportsInt]], but this technically supports list[Realish |
+                # tuple[Realish, SupportsInt]])
                 for item in items:
                     if isinstance(item, tuple):
-                        outcome, count_supports_int = cast(
+                        outcome, count_supports_int = cast(  # type: ignore [redundant-cast] # ty: ignore [unused-ignore-comment]
                             "tuple[Realish, SupportsInt]", item
                         )
                         count = as_int(count_supports_int)
@@ -420,7 +415,7 @@ class H(_HMappingT):
             if isinstance(items, Mapping):
                 outcome_counts = list(
                     _outcome_count_gen(
-                        cast("Iterable[tuple[Numberish, SupportsInt]]", items.items())
+                        cast("Iterable[tuple[Realish, SupportsInt]]", items.items())
                     )
                 )
             else:
@@ -501,7 +496,7 @@ class H(_HMappingT):
         return len(self._h)
 
     @beartype
-    def __getitem__(self, key: RealishLike) -> int:
+    def __getitem__(self, key: Realish) -> int:
         return __getitem__(self._h, key)
 
     @beartype
@@ -513,7 +508,7 @@ class H(_HMappingT):
         return reversed(self._h)
 
     @beartype
-    def __contains__(self, key: RealishLike) -> bool:  # type: ignore [override]
+    def __contains__(self, key: Realish) -> bool:  # type: ignore [override]
         return key in self._h
 
     @beartype
@@ -524,7 +519,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __radd__(self, other: RealishLike) -> "H":
+    def __radd__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __add__)
         except NotImplementedError:
@@ -538,7 +533,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rsub__(self, other: RealishLike) -> "H":
+    def __rsub__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __sub__)
         except NotImplementedError:
@@ -552,7 +547,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rmul__(self, other: RealishLike) -> "H":
+    def __rmul__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __mul__)
         except NotImplementedError:
@@ -582,7 +577,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rtruediv__(self, other: RealishLike) -> "H":
+    def __rtruediv__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __truediv__)
         except NotImplementedError:
@@ -596,7 +591,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rfloordiv__(self, other: RealishLike) -> "H":
+    def __rfloordiv__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __floordiv__)
         except NotImplementedError:
@@ -610,7 +605,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rmod__(self, other: RealishLike) -> "H":
+    def __rmod__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __mod__)
         except NotImplementedError:
@@ -624,7 +619,7 @@ class H(_HMappingT):
             return NotImplemented
 
     @beartype
-    def __rpow__(self, other: RealishLike) -> "H":
+    def __rpow__(self, other: Realish) -> "H":
         try:
             return self.rmap(other, __pow__)
         except NotImplementedError:
@@ -792,7 +787,7 @@ class H(_HMappingT):
             )
 
     @beartype
-    def rmap(self, left_operand: RealishLike, bin_op: BinaryOperatorT) -> "H":
+    def rmap(self, left_operand: Realish, bin_op: BinaryOperatorT) -> "H":
         r"""
         Analogous to the [``map`` method][dyce.h.H.map], but where the caller supplies
         *left_operand*.
@@ -977,9 +972,9 @@ class H(_HMappingT):
     @beartype
     def draw(
         self,
-        outcomes: RealishLike
-        | Iterable[RealishLike]
-        | Mapping[RealishLike, SupportsInt]
+        outcomes: Realish
+        | Iterable[Realish]
+        | Mapping[Realish, SupportsInt]
         | None = None,
     ) -> "H":
         r"""
@@ -1020,7 +1015,7 @@ class H(_HMappingT):
         >>> H(6).draw((2, 3, 4, 5)).lowest_terms()
         H({1: 1, 6: 1})
 
-        >>> h = H(6).accumulate(H(4)) ; h
+        >>> (h := H(6).accumulate(H(4)))
         H({1: 2, 2: 2, 3: 2, 4: 2, 5: 1, 6: 1})
         >>> h.draw({1: 2, 4: 1, 6: 1})
         H({1: 0, 2: 2, 3: 2, 4: 1, 5: 1, 6: 0})
@@ -1069,7 +1064,7 @@ class H(_HMappingT):
     @beartype
     def exactly_k_times_in_n(
         self,
-        outcome: RealishLike,
+        outcome: Realish,
         n: SupportsInt,
         k: SupportsInt,
     ) -> int:
@@ -1233,7 +1228,7 @@ class H(_HMappingT):
         return self._order_stat_funcs_by_n[n](pos)
 
     @beartype
-    def remove(self, outcome: RealishLike) -> "H":
+    def remove(self, outcome: Realish) -> "H":
         if outcome not in self:
             return self
 
@@ -1264,7 +1259,7 @@ class H(_HMappingT):
         return self.within(0, 0, other)
 
     @beartype
-    def within(self, lo: RealishLike, hi: RealishLike, other: _OperandT = 0) -> "H":
+    def within(self, lo: Realish, hi: Realish, other: _OperandT = 0) -> "H":
         r"""
         Computes the difference between the histogram and *other*. -1 represents where that
         difference is less than *lo*. 0 represents where that difference between *lo*
@@ -1301,7 +1296,7 @@ class H(_HMappingT):
         return self.map(_within(lo, hi), other)
 
     @beartype
-    def zero_fill(self, outcomes: Iterable[RealishLike]) -> "H":
+    def zero_fill(self, outcomes: Iterable[Realish]) -> "H":
         r"""
         Shorthand for ``#!python self.accumulate({outcome: 0 for outcome in
         outcomes})``.
@@ -1322,14 +1317,14 @@ class H(_HMappingT):
     @overload
     def distribution(
         self,
-        rational_t: Callable[[IntegralishLike, IntegralishLike], _T],
+        rational_t: Callable[[Integralish, Integralish], _T],
     ) -> Iterator[tuple[OutcomeT, _T]]: ...
 
     @experimental
     @beartype
     def distribution(
         self,
-        rational_t: Callable[[IntegralishLike, IntegralishLike], _T] | None = None,
+        rational_t: Callable[[Integralish, Integralish], _T] | None = None,
     ) -> Iterator[tuple[OutcomeT, _T]]:
         r"""
         Presentation helper function returning an iterator for each outcome/count or
@@ -1361,14 +1356,7 @@ class H(_HMappingT):
 
         ``` python
         >>> import sympy
-        >>> list(h.distribution(rational_t=sympy.Rational))
-        [(1, 1/8), (2, 1/8), (3, 1/4), (4, 1/4), (5, 1/8), (6, 1/8)]
-
-        ```
-
-        ``` python
-        >>> import sage.rings.rational  # doctest: +SKIP
-        >>> list(h.distribution(rational_t=lambda n, d: sage.rings.rational.Rational((n, d))))  # doctest: +SKIP
+        >>> list(h.distribution(rational_t=sympy.Rational))  # ty: ignore [unused-ignore] # type: ignore [invalid-argument-type]
         [(1, 1/8), (2, 1/8), (3, 1/4), (4, 1/4), (5, 1/8), (6, 1/8)]
 
         ```
@@ -1393,13 +1381,6 @@ class H(_HMappingT):
         >>> import sympy.abc
         >>> [(outcome, sympy.Rational(probability)) for outcome, probability in (h + sympy.abc.x).distribution()]
         [(x + 1, 1/8), (x + 2, 1/8), (x + 3, 1/4), (x + 4, 1/4), (x + 5, 1/8), (x + 6, 1/8)]
-
-        ```
-
-        ``` python
-        >>> import sage.rings.rational  # doctest: +SKIP
-        >>> [(outcome, sage.rings.rational.Rational(probability)) for outcome, probability in h.distribution()]  # doctest: +SKIP
-        [(1, 1/6), (2, 1/6), (3, 1/3), (4, 1/3), (5, 1/6), (6, 1/6)]
 
         ```
         """
@@ -1610,7 +1591,7 @@ class H(_HMappingT):
         Returns the variance of the weighted outcomes. If provided, *mu* is used as the mean
         (to avoid duplicate computation).
         """
-        realish_mu: RealishLike = mu or self._mean()
+        realish_mu: Realish = mu or self._mean()
         numerator = denominator = as_realish(0)
 
         for outcome, count in self.items():
@@ -1719,7 +1700,7 @@ class HableOpsMixin(HableT):
         return __add__(self.h(), other)
 
     @beartype
-    def __radd__(self: HableT, other: RealishLike) -> H:
+    def __radd__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__add__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1735,7 +1716,7 @@ class HableOpsMixin(HableT):
         return __sub__(self.h(), other)
 
     @beartype
-    def __rsub__(self: HableT, other: RealishLike) -> H:
+    def __rsub__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__sub__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1751,7 +1732,7 @@ class HableOpsMixin(HableT):
         return __mul__(self.h(), other)
 
     @beartype
-    def __rmul__(self: HableT, other: RealishLike) -> H:
+    def __rmul__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__mul__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1767,7 +1748,7 @@ class HableOpsMixin(HableT):
         return __truediv__(self.h(), other)
 
     @beartype
-    def __rtruediv__(self: HableT, other: RealishLike) -> H:
+    def __rtruediv__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__truediv__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1783,7 +1764,7 @@ class HableOpsMixin(HableT):
         return __floordiv__(self.h(), other)
 
     @beartype
-    def __rfloordiv__(self: HableT, other: RealishLike) -> H:
+    def __rfloordiv__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__floordiv__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1799,7 +1780,7 @@ class HableOpsMixin(HableT):
         return __mod__(self.h(), other)
 
     @beartype
-    def __rmod__(self: HableT, other: RealishLike) -> H:
+    def __rmod__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__mod__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1815,7 +1796,7 @@ class HableOpsMixin(HableT):
         return __pow__(self.h(), other)
 
     @beartype
-    def __rpow__(self: HableT, other: RealishLike) -> H:
+    def __rpow__(self: HableT, other: Realish) -> H:
         r"""
         Shorthand for ``#!python operator.__pow__(other, self.h())``. See the
         [``h`` method][dyce.h.HableT.h].
@@ -1967,9 +1948,7 @@ class HableOpsMixin(HableT):
         return self.h().is_odd()
 
     @beartype
-    def within(
-        self: HableT, lo: RealishLike, hi: RealishLike, other: _OperandT = 0
-    ) -> H:
+    def within(self: HableT, lo: Realish, hi: Realish, other: _OperandT = 0) -> H:
         r"""
         Shorthand for ``#!python self.h().within(lo, hi, other)``. See the
         [``h`` method][dyce.h.HableT.h] and [``H.within``][dyce.h.H.within].
@@ -1993,11 +1972,11 @@ def sum_h(hs: Iterable[H]) -> H:
 
 
 @beartype
-def _within(lo: RealishLike, hi: RealishLike) -> BinaryOperatorT:
+def _within(lo: Realish, hi: Realish) -> BinaryOperatorT:
     if __gt__(lo, hi):
         raise ValueError(f"lower bound ({lo}) is greater than upper bound ({hi})")
 
-    def _cmp(a: RealishLike, b: RealishLike) -> int:
+    def _cmp(a: Realish, b: Realish) -> int:
         # This approach will probably not work with most symbolic outcomes
         diff = a - b
 

@@ -19,7 +19,7 @@ from dyce.evaluation import (
     foreach,
 )
 from dyce.h import HOrOutcomeT
-from dyce.types import Numberish, Realish, as_realish
+from dyce.types import Realish, as_realish
 
 __all__ = ()
 
@@ -382,7 +382,7 @@ def test_expandable_accommodates_h_with_zero_total() -> None:
         FIVES_OR_SIXES = auto()
 
     def func(p_result: PResult) -> H:
-        c: Counter[Numberish] = Counter(p_result.roll)
+        c = Counter(p_result.roll)
 
         return H({Result.ONES: c[1], Result.FIVES_OR_SIXES: c[5] + c[6]})
 

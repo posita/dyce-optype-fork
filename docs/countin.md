@@ -152,7 +152,7 @@ The [Miwin-Distribution](https://en.wikipedia.org/wiki/Miwin%27s_dice#Cumulative
 >>> miwin_iii = H((1, 2, 5, 6, 7, 9))
 >>> miwin_iv = H((1, 3, 4, 5, 8, 9))
 >>> miwin_v = H((2, 3, 4, 6, 7, 8))
->>> miwin_dist = miwin_iii + miwin_iv + miwin_v ; miwin_dist
+>>> (miwin_dist := miwin_iii + miwin_iv + miwin_v)
 H({4: 1, 5: 2, 6: 3, 7: 4, 8: 7, ..., 22: 7, 23: 4, 24: 3, 25: 2, 26: 1})
 >>> print((miwin_dist).format(width=65, scaled=True))
 avg |   15.00
@@ -285,7 +285,7 @@ var |    1.31
 Summing the greatest and the least faces when rolling a typical six-die polygonal set would be:
 
 ``` python
->>> d10 = H(10)-1 ; d10  # a common “d10” with faces [0 .. 9]
+>>> (d10 := H(10)-1)  # a common “d10” with faces [0 .. 9]
 H({0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1})
 >>> h = P(4, 6, 8, d10, 12, 20).h(0, -1)
 >>> print(h.format(width=65, scaled=True))
@@ -478,7 +478,7 @@ Let’s compare how three six-sided dice fair against two four-sided dice.
 >>> def compare_duplicates(first: PResult, second: PResult):
 ...   return DupeVs((len(set(first.roll)) == len(first.roll)) - (len(set(second.roll)) == len(second.roll)))
 
->>> h = foreach(compare_duplicates, first=P(6, 6, 6), second=P(4, 4)) ; h
+>>> (h := foreach(compare_duplicates, first=P(6, 6, 6), second=P(4, 4)))
 H({<DupeVs.SECOND_WINS: -1>: 12,
  <DupeVs.TIE: 0>: 19,
  <DupeVs.FIRST_WINS: 1>: 5})
@@ -539,7 +539,7 @@ For non-critical contexts where relative values are indeterminate, ``dyce`` will
 This is to accommodate symbolic expressions whose relative values are often unknowable.
 
 ``` python
->>> expr = sympy.abc.x < sympy.abc.x * 3 ; expr
+>>> (expr := sympy.abc.x < sympy.abc.x * 3)
 x < 3*x
 >>> bool(expr)  # nope
 Traceback (most recent call last):
@@ -569,7 +569,7 @@ In practice, that means that certain operations won’t work with symbolic expre
 Flattening pools works.
 
 ``` python
->>> d3x = H(3) * sympy.abc.x ; d3x
+>>> (d3x := H(3) * sympy.abc.x)
 H({2*x: 1, 3*x: 1, x: 1})
 >>> p = P(d3x / 3, (d3x + 1) / 3, (d3x + 2) / 3)
 >>> p.h()

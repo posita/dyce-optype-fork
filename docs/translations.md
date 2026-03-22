@@ -220,7 +220,7 @@ We can also deploy a counting trick with the two d10s.
     By summing those results (and taking advantage of the fact that, in Python, ``#!python bool``s act like ``#!python int``s when it comes to arithmetic operators), we can count how often that happens with more than one interchangeable d10.
 
     ``` python
-    >>> h = H(10).lt(5) + H(10).lt(5) ; h
+    >>> (h := H(10).lt(5) + H(10).lt(5))
     H({0: 36, 1: 48, 2: 16})
     >>> h.total
     100
@@ -658,7 +658,7 @@ If we choose our values carefully, we can encode how many times we’ve encounte
 ...   HIT_EXPLODE,  # 6
 ... ))
 
->>> d_evens_up_exploded = explode(d_evens_up_raw, limit=3) ; d_evens_up_exploded
+>>> (d_evens_up_exploded := explode(d_evens_up_raw, limit=3))
 H({0: 648, 1: 432, 2: 108, 3: 72, 4: 18, 5: 12, 6: 3, 7: 2, 8: 1})
 
 ```

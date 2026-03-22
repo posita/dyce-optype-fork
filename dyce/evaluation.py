@@ -21,11 +21,10 @@ from .h import H, HableT, HOrOutcomeT, OutcomeT, _OutcomeCountT, _SourceT
 from .lifecycle import experimental
 from .p import P, RollT
 from .types import (
-    IntegralishLike,
-    Numberish,
+    Integralish,
     Protocol,
     ProtocolMeta,
-    RealishLike,
+    Realish,
     _GetItemT,
     as_int,
     as_integralish_ratio,
@@ -35,6 +34,7 @@ __all__ = ()
 
 _ = """
 ``` python
+>>> import sympy  # type: ignore [import-untyped] # ty: ignore [unused-ignore-comment]
 
 ```
 """
@@ -80,7 +80,7 @@ class _ForEachEvaluatorT(Protocol, metaclass=ProtocolMeta):
     def __call__(
         self,
         *args: _POrPWithSelectionOrSourceT,
-        limit: Numberish | None = None,
+        limit: Realish | None = None,
         **kw: _POrPWithSelectionOrSourceT,
     ) -> H: ...
 
@@ -170,7 +170,7 @@ def expandable(
 
     ``` python
     >>> d6 = H(6)
-    >>> d00 = (H(10) - 1) * 10 ; d00
+    >>> (d00 := (H(10) - 1) * 10)
     H({0: 1, 10: 1, 20: 1, 30: 1, 40: 1, 50: 1, 60: 1, 70: 1, 80: 1, 90: 1})
     >>> set(d6) & set(d00) == set()  # no outcomes in common
     True
@@ -181,7 +181,7 @@ def expandable(
     ...   # roll a d00 and take that result instead
     ...   return d00 if h_result.outcome == 1 else h_result.outcome
 
-    >>> d6_d00 = roll_d00_on_one(d6) ; d6_d00
+    >>> (d6_d00 := roll_d00_on_one(d6))
     H({0: 1,
      2: 10,
      3: 10,
@@ -291,7 +291,7 @@ def expandable(
     True
     >>> explode_recursive(H(6), limit=0) == H(6)  # return the sentinel without evaluation
     True
-    >>> exploded_d6_h = explode_recursive(H(6), limit=2) ; exploded_d6_h
+    >>> (exploded_d6_h := explode_recursive(H(6), limit=2))
     H({1: 36,
      2: 36,
      3: 36,
@@ -616,7 +616,7 @@ def expandable(
         @wraps(f)
         def _f(
             *args: _POrPWithSelectionOrSourceT,
-            limit: Numberish | None = None,
+            limit: Realish | None = None,
             **kw: _POrPWithSelectionOrSourceT,
         ) -> H:
             try:
@@ -742,7 +742,7 @@ def aggregate_weighted(
     ``` python
     >>> from dyce.evaluation import aggregate_weighted
     >>> weighted_sources = ((H({1: 1}), 1), (H({1: 1, 2: 2}), 2))
-    >>> h = aggregate_weighted(weighted_sources).lowest_terms() ; h
+    >>> aggregate_weighted(weighted_sources).lowest_terms()
     H({1: 5, 2: 4})
 
     ```
@@ -787,7 +787,7 @@ def aggregate_weighted(
 def foreach(
     callback: Callable[..., object],
     *args: _POrPWithSelectionOrSourceT,
-    limit: Numberish | None = None,
+    limit: Realish | None = None,
     sentinel: H = _DEFAULT_SENTINEL,
     **kw: _POrPWithSelectionOrSourceT,
 ) -> H:
@@ -854,8 +854,8 @@ def foreach(
 def explode(
     source: _SourceT,
     predicate: _PredicateT = lambda result: result.outcome == max(result.h),
-    limit: Numberish | None = None,
-    inf: Numberish = float("inf"),
+    limit: Realish | None = None,
+    inf: Realish = float("inf"),
 ) -> H:
     r"""
     !!! warning "Experimental"
@@ -940,7 +940,7 @@ def explode(
     ``` python
     >>> import sympy
     >>> x = sympy.sympify("x")
-    >>> explode(H({x: 1}), limit=Fraction(1, 10_000))  # type: ignore [bad-argument]
+    >>> explode(H({x: 1}), limit=Fraction(1, 10_000))  # ty: ignore [unused-ignore] # type: ignore [bad-argument]
     H({oo*x: 1})
 
     ```
@@ -951,7 +951,7 @@ def explode(
     def _explode(h_result: HResult) -> HOrOutcomeT:
         if predicate(h_result):
             if len(h_result.h) == 1 and not isinstance(
-                limit, (type(None), IntegralishLike)
+                limit, (type(None), Integralish)
             ):
                 if h_result.outcome == h_result.outcome - h_result.outcome:
                     return H({h_result.outcome: 1})
@@ -989,14 +989,12 @@ def _h_or_p_or_p_with_selection_to_result_iterable(
 
 
 @beartype
-def _normalize_limit(
-    limit: Numberish,
-) -> _NormalizedLimitT:
+def _normalize_limit(limit: Realish) -> _NormalizedLimitT:
     normalized_limit: _NormalizedLimitT
 
-    if isinstance(limit, IntegralishLike):
+    if isinstance(limit, Integralish):
         normalized_limit = as_int(limit)
-    elif isinstance(limit, RealishLike):
+    elif isinstance(limit, Realish):
         try:
             numerator, denominator = as_integralish_ratio(limit)
             normalized_limit = Fraction(as_int(numerator), as_int(denominator))

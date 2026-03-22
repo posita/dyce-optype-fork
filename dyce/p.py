@@ -13,7 +13,7 @@ from functools import cache
 from itertools import chain, groupby, product, repeat, starmap
 from math import inf, prod
 from operator import __eq__, __index__, __ne__
-from typing import Union, cast, overload
+from typing import Union, overload
 
 from beartype.typing import SupportsIndex, SupportsInt
 from numerary.bt import beartype
@@ -22,9 +22,7 @@ from .h import H, HableOpsMixin, OutcomeT, sum_h
 from .lifecycle import experimental
 from .types import (
     BinaryOperatorT,
-    Numberish,
     Realish,
-    RealishLike,
     UnaryOperatorT,
     _GetItemT,
     as_int,
@@ -41,7 +39,7 @@ __all__ = ("P",)
 # TODO(posita): Get rid of Union in favor of | notation once we can use proper forward
 # references. See <https://github.com/beartype/beartype/issues/152>.
 RollT = tuple[OutcomeT, ...]
-_OperandT = Union["P", Numberish]
+_OperandT = Union["P", Realish]
 _RollCountT = tuple[RollT, int]
 _RollProbT = tuple[RollT, int, int]
 
@@ -57,7 +55,7 @@ class P(Sequence[H], HableOpsMixin):
 
     ``` python
     >>> from dyce import P
-    >>> p_d6 = P(6) ; p_d6  # shorthand for P(H(6))
+    >>> (p_d6 := P(6))  # shorthand for P(H(6))
     P(H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1}))
 
     ```
@@ -73,7 +71,7 @@ class P(Sequence[H], HableOpsMixin):
     ```
 
     ``` python
-    >>> p = P(4, P(6, P(8, P(10, P(12, P(20)))))) ; p
+    >>> (p := P(4, P(6, P(8, P(10, P(12, P(20)))))))
     P(H({1: 1, 2: 1, 3: 1, 4: 1}), H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1}), H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1}), H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1}), H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1}), H({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1, 20: 1}))
     >>> sum(p.roll()) in p.h()
     True
@@ -434,7 +432,7 @@ class P(Sequence[H], HableOpsMixin):
 
     @experimental
     @beartype
-    def appearances_in_rolls(self, outcome: RealishLike) -> H:
+    def appearances_in_rolls(self, outcome: Realish) -> H:
         r"""
         !!! warning "Experimental"
 
@@ -498,10 +496,10 @@ class P(Sequence[H], HableOpsMixin):
         ```
         </details>
         """
-        group_counters: list[Counter[RealishLike]] = []
+        group_counters: list[Counter[Realish]] = []
 
         for h, hs in groupby(self):
-            group_counter: Counter[RealishLike] = Counter()
+            group_counter: Counter[Realish] = Counter()
             n = sum(1 for _ in hs)
 
             for k in range(n + 1):
@@ -550,7 +548,7 @@ class P(Sequence[H], HableOpsMixin):
         ...   return counter
 
         >>> p_6d6 = 6@P(6)
-        >>> every_other_d6 = accumulate_roll_counts(Counter(), p_6d6.rolls_with_counts(slice(None, None, -2))) ; every_other_d6
+        >>> (every_other_d6 := accumulate_roll_counts(Counter(), p_6d6.rolls_with_counts(slice(None, None, -2))))
         Counter({(6, 4, 2): 4110, (6, 5, 3): 3390, (6, 4, 3): 3330, ..., (3, 3, 3): 13, (2, 2, 2): 7, (1, 1, 1): 1})
         >>> accumulate_roll_counts(Counter(), p_6d6.rolls_with_counts(5, 3, 1)) == every_other_d6
         True
@@ -773,7 +771,7 @@ class P(Sequence[H], HableOpsMixin):
     @beartype
     def rmap(
         self,
-        left_operand: Realish | RealishLike,
+        left_operand: Realish,
         op: BinaryOperatorT,
     ) -> "P":
         r"""
@@ -897,7 +895,7 @@ def _rwc_heterogeneous_h_groups(
                         total_n - len(sorted_outcomes)
                     )
 
-            yield cast("RollT", sorted_outcomes), total_count
+            yield sorted_outcomes, total_count
 
 
 @beartype
@@ -905,7 +903,7 @@ def _rwc_homogeneous_n_h_using_partial_selection(
     n: int,
     h: H,
     k: int,
-    fill: RealishLike | None = None,
+    fill: Realish | None = None,
 ) -> Iterator[_RollCountT]:
     r"""
     A memoized adaptation of [Ilmari Karonen’s

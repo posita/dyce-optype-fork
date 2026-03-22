@@ -221,6 +221,28 @@ def main(*args: str) -> int:
         mypy_args = [*parsed_args.mypy_args, dst_dir]
         _LOGGER.debug("> mypy.api.run(%r)", mypy_args)
         mixed_results.append(mypy.api.run(mypy_args))
+
+        pyrefly_args = [
+            "pyrefly",
+            "check",
+            "--config",
+            str(proj_dir_path / "pyproject.toml"),
+            dst_dir,
+        ]
+        _LOGGER.debug("> %s", shlex.join(pyrefly_args))
+        res = subprocess.run(pyrefly_args, capture_output=True, text=True)
+        mixed_results.append((res.stdout, res.stderr, res.returncode))
+
+        pyright_args = [
+            "pyright",
+            "--project",
+            str(proj_dir_path),
+            dst_dir,
+        ]
+        _LOGGER.debug("> %s", shlex.join(pyright_args))
+        res = subprocess.run(pyright_args, capture_output=True, text=True)
+        mixed_results.append((res.stdout, res.stderr, res.returncode))
+
         ty_args = [
             "ty",
             "check",

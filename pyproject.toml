@@ -73,10 +73,11 @@ dyce = ["py.typed"]
 [tool.mypy]  # -------------------------------------------------------------------------
 
 # See <https://mypy.readthedocs.io/en/stable/config_file.html#confval-exclude>
-exclude = """(?x)(
-  (^|/)build/
-  | (^|/)site/
-)"""
+# exclude = """(?x)(
+#   (^|/)build/
+#   | (^|/)site/
+# )"""
+exclude_gitignore = true
 warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = true

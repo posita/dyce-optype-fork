@@ -25,7 +25,7 @@ from dyce.p import (
     _RollCountT,
     _rwc_homogeneous_n_h_using_partial_selection,
 )
-from dyce.types import Numberish, _GetItemT
+from dyce.types import Realish, _GetItemT
 
 __all__ = ()
 
@@ -184,7 +184,7 @@ class TestP:
         p_d6 = P(6)
 
         with pytest.raises(roar.BeartypeException):
-            _ = p_d6[""]  # type: ignore [call-overload, unused-ignore] # ty: ignore [unused-ignore-comment]
+            _ = p_d6[""]  # type: ignore [call-overload] # ty: ignore [unused-ignore-comment]
 
     def test_op_add_h(self) -> None:
         d2 = H(2)
@@ -562,7 +562,7 @@ class TestP:
         assert p_2d6_3d8.total == H(6).total ** 2 * H(8).total ** 3
 
     def test_appearances_in_rolls(self) -> None:
-        def _sum_method(p: P, outcome: Numberish) -> H:
+        def _sum_method(p: P, outcome: Realish) -> H:
             return H(
                 (sum(1 for v in roll if v == outcome), count)
                 for roll, count in p.rolls_with_counts()

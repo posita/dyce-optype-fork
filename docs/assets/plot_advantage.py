@@ -10,7 +10,7 @@ from anydyce.viz import plot_line
 
 from dyce import H, P
 from dyce.evaluation import HResult, foreach
-from dyce.types import Numberish
+from dyce.types import Realish
 
 
 def do_it(style: str) -> None:
@@ -20,7 +20,7 @@ def do_it(style: str) -> None:
     critical_hit = 3 @ H(12) + 5
     advantage = (2 @ P(20)).h(-1)
 
-    def crit(result: HResult) -> H | Numberish:
+    def crit(result: HResult) -> H | Realish:
         if result.outcome == 20:
             return critical_hit
         elif result.outcome + 5 >= 14:
