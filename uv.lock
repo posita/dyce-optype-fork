@@ -641,6 +641,7 @@ wheels = [
 name = "dyce"
 source = { editable = "." }
 dependencies = [
+    { name = "lark" },
     { name = "optype" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
@@ -774,6 +775,7 @@ viz = [
 
 [package.metadata]
 requires-dist = [
+    { name = "lark", specifier = ">=1.3.1" },
     { name = "matplotlib", marker = "extra == 'viz'" },
     { name = "optype" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'", specifier = ">=4.5" },
