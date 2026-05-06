@@ -116,8 +116,14 @@ _ARITH_OPS = {"+", "-", "*", "/", "^"}
 _CMP_OPS = {"=", "!=", "<", ">", "<=", ">="}
 _BOOL_OPS = {"&", "|"}
 
-# +/- treat empty die as scalar 0; */^ propagate emptiness as H({})
-_EMPTY_DIE_AS_ZERO_ARITH = {"+", "-"}
+# Operators that treat empty die (H({})) as scalar 0 rather than propagating
+# emptiness: +, -, |. The remaining binary ops (*, /, ^, &) propagate H({}).
+# Note that AnyDice has well-documented inconsistencies in this area --
+# `d{} + seq` returns the seq per-element instead of sum-coercing, and
+# `seq | d{}` returns the sum-coerced seq instead of bool-ORing with 0. We
+# deliberately implement uniform sum-coerce-with-empty-as-zero semantics for
+# +, -, | and accept the divergence as known AnyDice bugs.
+_EMPTY_DIE_AS_ZERO = {"+", "-", "|"}
 
 # ---- Function pattern shape --------------------------------------------------------------
 
@@ -415,12 +421,12 @@ class AnyDiceInterpreter:
         # Empty-die handling: + and - treat empty die as scalar 0. * / and ^ propagate
         # H({}).
         if isinstance(left, H) and not left:
-            if op in _EMPTY_DIE_AS_ZERO_ARITH:
+            if op in _EMPTY_DIE_AS_ZERO:
                 left = 0
             else:
                 return H({})
         if isinstance(right, H) and not right:
-            if op in _EMPTY_DIE_AS_ZERO_ARITH:
+            if op in _EMPTY_DIE_AS_ZERO:
                 right = 0
             else:
                 return H({})
@@ -458,7 +464,7 @@ class AnyDiceInterpreter:
                 raise TypeError(f"unexpected left operand type {type(left).__name__}")
         return self._h_binop(op, left, right)
 
-    def _apply_bool(self, op: str, left: _Val, right: _Val) -> int | H[int]:  # noqa: C901
+    def _apply_bool(self, op: str, left: _Val, right: _Val) -> int | H[int]:
         # Sequences sum-coerce for boolean ops
         if isinstance(left, tuple):
             left = sum(left)
@@ -471,17 +477,16 @@ class AnyDiceInterpreter:
         l_empty = isinstance(left, H) and not left
         r_empty = isinstance(right, H) and not right
         if op == "&":
-            # Both sides propagate empty-die emptiness
+            # & propagates empty-die emptiness from either side.
             if l_empty or r_empty:
                 return H({})
         elif op == "|":
-            # AnyDice anomaly: d{} | <0> propagates H({}) (where <0> is empty seq summed
-            # to 0 or another empty die), but d{} | <nonzero> does NOT propagate (acts
-            # as scalar 0). We match AnyDice's actual outputs.
-            if l_empty and r_empty:
-                return H({})
-            if l_empty and isinstance(right, int) and right == 0:
-                return H({})
+            # | treats empty die as scalar 0 in both directions, mirroring
+            # the semantic for + and - (see _EMPTY_DIE_AS_ZERO). AnyDice
+            # itself is buggy here: `d{} | seq` propagates emptiness while
+            # `seq | d{}` returns the sum-coerced seq, neither matching
+            # bool-OR-with-zero semantics. We deliberately implement uniform
+            # bool-OR-with-empty-as-zero.
             if l_empty:
                 left = 0
             if r_empty:

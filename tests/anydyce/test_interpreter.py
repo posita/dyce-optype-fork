@@ -1582,24 +1582,21 @@ class TestOr:
     def test_die_or_empty_die(self) -> None:
         assert run("output 2d6 | d{}") == [("output 1", H({1: 36}))]
 
-    # ---- Anomaly probes: cases where both | operands evaluate to zero/empty -----
+    # ---- Both | operands evaluate to zero/empty -----
+    # `|` treats empty die as scalar 0 uniformly (see _EMPTY_DIE_AS_ZERO),
+    # so all of these reduce to `0 | 0 = 0`.
 
     def test_empty_seq_or_empty_seq(self) -> None:
-        # sum 0 | sum 0 = 0
         assert run("output {} | {}") == [("output 1", H({0: 1}))]
 
     def test_empty_seq_or_empty_die(self) -> None:
-        # sum 0 | (right empty die acts as 0) = 0
         assert run("output {} | d{}") == [("output 1", H({0: 1}))]
 
     def test_empty_die_or_empty_seq(self) -> None:
-        # AnyDice anomaly: d{} | {} returns H({}) even though d{} | 5 returns H({1:1}).
-        # We match AnyDice's actual output for this specific corner case.
-        assert run("output d{} | {}") == [("output 1", H({}))]
+        assert run("output d{} | {}") == [("output 1", H({0: 1}))]
 
     def test_empty_die_or_empty_die(self) -> None:
-        # Both sides empty die -> propagate.
-        assert run("output d{} | d{}") == [("output 1", H({}))]
+        assert run("output d{} | d{}") == [("output 1", H({0: 1}))]
 
 
 # ---- Negation (unary -) ------------------------------------------------------------------
